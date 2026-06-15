@@ -1,0 +1,36 @@
+manifestVersion: 1
+id: meuapps-teamspeak6
+name: TeamSpeak 6 Server
+tagline: Servidor de voz TS6 com screen share (beta)
+icon: https://raw.githubusercontent.com/teamspeak/teamspeak6-server/main/icons/teamspeak_blue.svg
+category: Social
+version: "6.0.0-beta10"
+port: 10080
+description: >-
+  Servidor TeamSpeak 6 self-hosted (beta oficial da TeamSpeak Systems).
+
+
+  Comunicacao de voz de baixa latencia, chat, compartilhamento de tela P2P
+  e camera. Inclui licenca beta de 32 slots renovada a cada dois meses
+  durante o periodo de avaliacao.
+
+
+  Porta de voz: 9987/udp. Transferencia de arquivos: 30033/tcp.
+
+
+  AVISO: software em beta, pode conter bugs e mudar entre versoes.
+  Licencas de TS3 nao sao compativeis com TS6.
+releaseNotes: >-
+  Versao beta10 do servidor TeamSpeak 6.
+developer: TeamSpeak Systems
+website: https://teamspeak.com
+submitter: herigson
+submission: https://github.com/herigson/umbrel-meus-apps
+repo: https://github.com/teamspeak/teamspeak6-server
+support: https://community.teamspeak.com
+gallery:
+  - https://raw.githubusercontent.com/teamspeak/teamspeak6-server/main/icons/teamspeak_blue.svg
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
