@@ -6,9 +6,23 @@ services:
       APP_HOST: meuapps-teamspeak6_server_1
       APP_PORT: 10080
 
+  # Ajusta a permissao do bind mount antes do servidor subir.
+  # O TS6 server roda como usuario nao-root e precisa escrever em /var/tsserver
+  # (cria a pasta logs e o banco). Sem isso ele crasha em loop no primeiro boot.
+  init:
+    image: alpine:3.20
+    user: "0:0"
+    command: sh -c "chmod -R 777 /var/tsserver"
+    restart: "no"
+    volumes:
+      - ${APP_DATA_DIR}/data:/var/tsserver
+
   server:
     image: teamspeaksystems/teamspeak6-server:6.0.0-beta10
     restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
     ports:
       - "9987:9987/udp"
       - "30033:30033/tcp"
