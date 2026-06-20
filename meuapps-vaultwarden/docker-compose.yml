@@ -1,0 +1,21 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: meuapps-vaultwarden_server_1
+      APP_PORT: 8089
+      # Vaultwarden tem login proprio; nao envolver na autenticacao do Umbrel
+      # (senao os apps Bitwarden nao conseguem falar com a API).
+      PROXY_AUTH_ADD: "false"
+
+  server:
+    image: vaultwarden/server:1.36.0
+    restart: on-failure
+    environment:
+      # escuta em 8089 (mesma porta exposta pelo app_proxy)
+      ROCKET_PORT: 8089
+      # permite criar a 1a conta; DESATIVE (false) depois de criar a sua
+      SIGNUPS_ALLOWED: "true"
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

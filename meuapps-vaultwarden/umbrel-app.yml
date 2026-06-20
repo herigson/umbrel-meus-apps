@@ -1,0 +1,43 @@
+manifestVersion: 1
+id: meuapps-vaultwarden
+name: Vaultwarden
+tagline: Servidor de senhas compativel com Bitwarden (self-hosted)
+icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/vaultwarden/icon.svg
+category: Files
+version: "1.36.0"
+port: 8089
+description: >-
+  Vaultwarden e um servidor leve e compativel com o Bitwarden, escrito em Rust.
+  Cofre de senhas self-hosted com suporte a anexos, organizacoes, 2FA
+  (TOTP/WebAuthn/YubiKey), icones de site e os apps oficiais do Bitwarden
+  (extensao de navegador, desktop e celular).
+
+
+  IMPORTANTE (HTTPS): a interface web do Vaultwarden NAO funciona por http
+  simples - a Web Crypto API do navegador exige "contexto seguro". Para o
+  primeiro acesso e criacao da conta, use o acesso remoto via Tor do Umbrel
+  (o Tor Browser trata enderecos .onion como seguros). Para o uso no dia a
+  dia nos apps Bitwarden, exponha por HTTPS via Tailscale.
+
+
+  Apos criar sua conta, desative novos cadastros mudando SIGNUPS_ALLOWED para
+  false no docker-compose e reiniciando o app.
+
+
+  Nao e afiliado ao Bitwarden(R) oficial. Bugs devem ir para o projeto
+  Vaultwarden.
+releaseNotes: >-
+  Vaultwarden 1.36.0. Roda como root (imagem padrao), entao nao tem o problema
+  de permissao de bind mount.
+developer: Vaultwarden (dani-garcia)
+website: https://github.com/dani-garcia/vaultwarden
+submitter: herigson
+submission: https://github.com/herigson/umbrel-meus-apps
+repo: https://github.com/dani-garcia/vaultwarden
+support: https://github.com/dani-garcia/vaultwarden/discussions
+gallery:
+  - https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/vaultwarden/icon.svg
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
