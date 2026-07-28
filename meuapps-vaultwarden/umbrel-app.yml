@@ -4,7 +4,7 @@ name: Vaultwarden
 tagline: Servidor de senhas compativel com Bitwarden (self-hosted)
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/vaultwarden/icon.svg
 category: Files
-version: "1.36.0"
+version: "1.37.0"
 port: 8089
 description: >-
   Vaultwarden e um servidor leve e compativel com o Bitwarden, escrito em Rust.
@@ -27,8 +27,10 @@ description: >-
   Nao e afiliado ao Bitwarden(R) oficial. Bugs devem ir para o projeto
   Vaultwarden.
 releaseNotes: >-
-  Vaultwarden 1.36.0. Roda como root (imagem padrao), entao nao tem o problema
-  de permissao de bind mount.
+  Vaultwarden 1.37.0. Release de seguranca: corrige SSRF no endpoint de
+  icones, acesso indevido entre organizacoes e bypass de politicas.
+  Necessario para compatibilidade com clientes Bitwarden 2026.7.0+. Roda como
+  root (imagem padrao), entao nao tem o problema de permissao de bind mount.
 developer: Vaultwarden (dani-garcia)
 website: https://github.com/dani-garcia/vaultwarden
 submitter: herigson
