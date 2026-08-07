@@ -10,7 +10,7 @@ services:
       PROXY_AUTH_ADD: "false"
 
   server:
-    image: vaultwarden/server:1.37.0
+    image: vaultwarden/server:1.37.1
     restart: on-failure
     environment:
       # escuta em 8089 (mesma porta exposta pelo app_proxy)
