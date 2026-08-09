@@ -1,0 +1,36 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: meuapps-nerdminer_miner_1
+      # API interna do cpuminer (nao e uma UI web; o botao Open nao mostra
+      # nada util, igual ao Web Query do TS6).
+      APP_PORT: 4048
+      PROXY_AUTH_ADD: "false"
+
+  miner:
+    image: cniweb/cpuminer-multi:1.3.7
+    restart: unless-stopped
+    # TROQUE SEU_ENDERECO_BTC pelo seu endereco Bitcoin real (bc1...).
+    # O sufixo .umbrel e so o nome do worker no dashboard do pool.
+    command:
+      - cpuminer
+      - -a
+      - sha256d
+      - -o
+      - stratum+tcp://public-pool.io:21496
+      - -u
+      - SEU_ENDERECO_BTC.umbrel
+      - -p
+      - x
+      - -t
+      - "2"
+      - --api-bind
+      - 0.0.0.0:4048
+    # Teto duro de CPU alem das 2 threads do -t, pra nao competir com os
+    # outros apps (Bitcoin Core roda na mesma maquina).
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"

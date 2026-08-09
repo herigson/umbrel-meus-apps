@@ -1,0 +1,43 @@
+manifestVersion: 1
+id: meuapps-nerdminer
+name: NerdMiner CPU (Loteria)
+tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
+icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
+category: Finances
+version: "1.3.7"
+port: 4048
+description: >-
+  Minerador de Bitcoin por CPU (cpuminer-multi) apontado para o pool solo
+  public-pool.io - o mesmo usado pelos NerdMiners. Funciona como uma loteria:
+  a chance de achar um bloco e minuscula, mas se acontecer, a recompensa
+  inteira vai para o SEU endereco Bitcoin.
+
+
+  IMPORTANTE: antes de usar, edite o docker-compose.yml e troque
+  SEU_ENDERECO_BTC pelo seu endereco Bitcoin real (bc1...). Sem isso o
+  minerador nao tem para quem minerar.
+
+
+  As threads sao limitadas (-t 2) e ha um teto de CPU no compose para nao
+  atrapalhar os outros apps do Umbrel. Acompanhe seu worker em
+  https://web.public-pool.io informando seu endereco BTC.
+
+
+  O botao Open abre a porta 4048 (API interna do cpuminer, nao e uma pagina
+  web de verdade) - isso e esperado. O que importa e o processo minerando.
+releaseNotes: >-
+  Primeira versao. cpuminer-multi 1.3.7 (imagem cniweb/cpuminer-multi,
+  amd64), algoritmo sha256d, pool solo public-pool.io porta 21496, 2 threads
+  e teto de 2 CPUs.
+developer: cniweb / tpruvot (cpuminer-multi)
+website: https://github.com/cniweb/cpuminer-multi-docker
+submitter: herigson
+submission: https://github.com/herigson/umbrel-meus-apps
+repo: https://github.com/cniweb/cpuminer-multi-docker
+support: https://web.public-pool.io
+gallery:
+  - https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
