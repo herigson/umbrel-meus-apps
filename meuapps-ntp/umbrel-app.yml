@@ -1,0 +1,40 @@
+manifestVersion: 1
+id: meuapps-ntp
+name: Servidor NTP (chrony)
+tagline: Servidor de hora (NTP) para toda a rede local
+icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f550.svg
+category: Networking
+version: "1.0.0"
+port: 8123
+description: >-
+  Servidor NTP local usando chrony (imagem cturra/ntp). O Umbrel passa a
+  servir hora precisa na porta 123/UDP para todos os dispositivos da rede -
+  roteador MikroTik, cameras, PCs, IoT - sem que cada um precise falar com a
+  internet.
+
+
+  O chrony sincroniza com os servidores oficiais do NTP.br (a.st1.ntp.br /
+  b.st1.ntp.br) e usa time.cloudflare.com como reserva, e dai distribui a
+  hora localmente.
+
+
+  Para usar: aponte o cliente NTP dos dispositivos (ou a opcao 42 do DHCP no
+  MikroTik) para o IP do Umbrel, porta 123/UDP. O botao Open mostra so uma
+  pagina de status simples.
+releaseNotes: >-
+  Primeira versao. chrony via cturra/ntp (multi-arch), porta 123/UDP
+  publicada no host, upstream NTP.br + Cloudflare. Atencao: a imagem so tem
+  a tag latest - nao ha como fixar versao; um Update do app re-puxa a imagem
+  mais recente.
+developer: cturra (docker-ntp) / chrony
+website: https://github.com/cturra/docker-ntp
+submitter: herigson
+submission: https://github.com/herigson/umbrel-meus-apps
+repo: https://github.com/cturra/docker-ntp
+support: https://github.com/cturra/docker-ntp/issues
+gallery:
+  - https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f550.svg
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
