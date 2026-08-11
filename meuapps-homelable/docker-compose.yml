@@ -1,0 +1,52 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: meuapps-homelable_frontend_1
+      # O frontend (nginx) escuta na 80 dentro do container e ja faz o proxy
+      # de /api/ e dos WebSockets para o servico "backend".
+      APP_PORT: 80
+
+  # O nome deste servico PRECISA ser "backend": o nginx do frontend aponta
+  # para http://backend:8000 (docker/nginx.conf do projeto).
+  backend:
+    image: ghcr.io/pouzor/homelable-backend:3.2.0
+    restart: unless-stopped
+    # Necessario para as checagens de status por ping (ICMP raw socket).
+    cap_add:
+      - NET_RAW
+    environment:
+      SQLITE_PATH: /app/data/homelab.db
+
+      # TROQUE por uma chave aleatoria de 32 bytes antes de usar de verdade:
+      #   python3 -c "import secrets; print(secrets.token_hex(32))"
+      SECRET_KEY: "TROQUE_ESTA_CHAVE_POR_UMA_ALEATORIA_DE_32_BYTES"
+
+      # Login local. O hash abaixo e o padrao do projeto = senha "admin".
+      # Para trocar:
+      #   python3 -c "import bcrypt; print(bcrypt.hashpw(b'suasenha', bcrypt.gensalt()).decode())"
+      # e DOBRAR cada cifrao ($ -> $$) ao colar aqui, senao o compose tenta
+      # expandir como variavel e o login quebra.
+      AUTH_MODE: local
+      AUTH_USERNAME: admin
+      AUTH_PASSWORD_HASH: "$$2b$$12$$RtMbyw17l4N5UGzeXMNAWuzCaVV.XFBY7ZetWheQhxcBDcxahapkG"
+
+      # Origens do navegador (as chamadas /api sao same-origin via nginx, isso
+      # e so garantia). Ajuste se acessar por outro nome/porta.
+      CORS_ORIGINS: '["http://umbrel.local:8094","http://192.168.88.2:8094"]'
+
+      # Faixa varrida pelo scan de descoberta.
+      SCANNER_RANGES: '["192.168.88.0/24"]'
+      STATUS_CHECKER_INTERVAL: "60"
+    volumes:
+      # Banco SQLite + uploads (plantas baixas) - imagem roda como root,
+      # entao o bind mount criado como root funciona sem chmod (igual ao
+      # Vaultwarden, diferente do TS6).
+      - ${APP_DATA_DIR}/data:/app/data
+
+  frontend:
+    image: ghcr.io/pouzor/homelable-frontend:3.2.0
+    restart: unless-stopped
+    depends_on:
+      - backend

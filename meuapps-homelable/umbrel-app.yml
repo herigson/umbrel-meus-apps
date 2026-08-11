@@ -1,0 +1,57 @@
+manifestVersion: 1
+id: meuapps-homelable
+name: Homelable
+tagline: Mapa visual da rede - descobre, documenta e monitora o homelab
+icon: https://homelable.net/favicon.svg
+category: Networking
+version: "3.2.0"
+port: 8094
+description: >-
+  Homelable e um canvas visual self-hosted para mapear, documentar e monitorar
+  a rede de casa. Voce arrasta os dispositivos num quadro (roteador, switch,
+  AP, servidor, NAS, IoT...), liga uns nos outros e ve o status de cada um ao
+  vivo.
+
+
+  Descoberta automatica: um scan baseado em nmap varre a faixa da LAN,
+  identifica servicos e deixa os dispositivos novos numa fila de aprovacao.
+  Monitoramento: checagem periodica por ping, HTTP, TLS, SSH ou porta TCP,
+  com atualizacao ao vivo na tela via WebSocket. Da para exportar o mapa em
+  PNG/SVG para colar na documentacao.
+
+
+  Faixa de scan ja configurada para 192.168.88.0/24. Login inicial:
+  admin / admin - TROQUE antes de usar (veja as notas da versao).
+
+
+  Sem telemetria, tudo local, licenca MIT.
+releaseNotes: >-
+  Primeira versao empacotada: Homelable 3.2.0 (imagens ghcr do autor,
+  amd64/arm64). Sobem dois containers - frontend (nginx, servido pelo
+  app_proxy) e backend (FastAPI + SQLite em ${APP_DATA_DIR}/data).
+
+
+  ATENCAO 1 - senha: o login padrao e admin/admin. Para trocar, gerar um hash
+  bcrypt e colocar em AUTH_PASSWORD_HASH no docker-compose.yml, dobrando cada
+  cifrao ($$) senao o compose interpreta como variavel.
+
+
+  ATENCAO 2 - SECRET_KEY: trocar o valor placeholder por uma chave aleatoria
+  de 32 bytes antes de expor o app.
+
+
+  ATENCAO 3 - scan: o container fica numa bridge do Docker, entao a
+  descoberta usa ICMP/TCP (nao ARP). Dispositivos que nao respondem a ping
+  podem nao aparecer sozinhos - da para cadastrar na mao.
+developer: Remy Jardinet (Pouzor)
+website: https://homelable.net
+submitter: herigson
+submission: https://github.com/herigson/umbrel-meus-apps
+repo: https://github.com/Pouzor/homelable
+support: https://github.com/Pouzor/homelable/issues
+gallery:
+  - https://homelable.net/media/og-cover.png
+dependencies: []
+path: ""
+defaultUsername: "admin"
+defaultPassword: "admin"
