@@ -10,12 +10,17 @@ services:
       PROXY_AUTH_ADD: "false"
 
   miner:
-    image: cniweb/cpuminer-multi:1.3.7
+    # Build proprio do cpuminer-opt com SHA-NI (ver .build/cpuminer-sha).
+    # As imagens publicas sao compiladas sem SHA e rendem ~5.5 MH/s por
+    # thread neste N100; esta rende ~27 MH/s por thread e roda mais fria.
+    image: ghcr.io/herigson/cpuminer-sha:26.1
     restart: unless-stopped
-    # TROQUE SEU_ENDERECO_BTC pelo seu endereco Bitcoin real (bc1...).
-    # O sufixo .umbrel e so o nome do worker no dashboard do pool.
+    # A imagem tem ENTRYPOINT ["cpuminer"], entao aqui vao SO os argumentos -
+    # nao repetir "cpuminer" na primeira linha (era assim na imagem antiga).
+    #
+    # TROQUE SEU_ENDERECO_BTC pelo seu endereco Bitcoin real (bc1..., em
+    # minusculas). O sufixo .umbrel e so o nome do worker no dashboard.
     command:
-      - cpuminer
       - -a
       - sha256d
       - -o
@@ -25,12 +30,13 @@ services:
       - -p
       - x
       - -t
-      - "2"
+      - "1"
       - --api-bind
       - 0.0.0.0:4048
-    # Teto duro de CPU alem das 2 threads do -t, pra nao competir com os
-    # outros apps (Bitcoin Core roda na mesma maquina).
+    # 1 thread + meio nucleo: com SHA-NI isso ja da ~13 MH/s, mais que o
+    # dobro do que 2 threads davam antes, e sem passar dos 80 C (o episodio
+    # dos 89 C foi com 2 threads no binario sem SHA).
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: "0.5"
