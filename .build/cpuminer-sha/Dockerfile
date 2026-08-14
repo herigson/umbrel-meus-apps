@@ -5,14 +5,17 @@
 # SHA-NI, o binario sai sem ela e o sha256d fica na velocidade do AVX2 puro
 # ("SW features: AVX2 AES" / "Enabled optimizations: AVX2" no log).
 #
-# Aqui as flags sao explicitas, entao o resultado nao depende do hardware que
-# compila:
-#   -march=x86-64-v3  base AVX2/BMI2/FMA (portavel: Zen1+, Ice Lake+, Gracemont)
-#   -msha             instrucoes SHA-NI  <- o que triplica o sha256d
-#   -mvaes            VAES (o N100 tem; irrelevante pro sha256d, util p/ outros algos)
+# Flags: "-march=alderlake" e a receita do proprio JayDDee para o ISA
+# AVX2 + SHA + VAES (build-allarch.sh, alvo "cpuminer-alderlake") - que e
+# exatamente o do Intel N100 (Alder Lake-N / Gracemont) do Umbrel.
+# Exige gcc-12+, que e o padrao no debian bookworm.
 #
-# Alvo validado: Intel N100 (Alder Lake-N / Gracemont) do Umbrel.
-# Conferir depois de subir: o log deve mostrar SHA em "SW features".
+# Tentativa anterior que NAO compila (exit 2): "-march=x86-64-v3 -msha -mvaes".
+# O nivel x86-64-v3 nao inclui AES nem PCLMUL, que o codigo assume presentes
+# quando ha AVX2.
+#
+# Consequencia: a imagem so roda em CPUs Alder Lake ou mais novas. Isso e
+# proposital - ela existe para esta maquina.
 
 ARG CPUMINER_VERSION=v27.4
 
@@ -32,18 +35,18 @@ RUN set -eu; \
 
 WORKDIR /src
 RUN set -eu; \
+    gcc --version | head -1; \
     ./autogen.sh; \
-    CFLAGS="-O3 -march=x86-64-v3 -msha -mvaes -Wall -fno-common" \
-        ./configure --with-curl; \
+    CFLAGS="-O3 -march=alderlake -Wall" ./configure --with-curl; \
     make -j"$(nproc)"; \
-    make install
-# NAO rodar o binario aqui (--version / --cputest): o runner do GitHub pode
-# nao ter SHA-NI e o processo morreria com "Illegal instruction" durante o
-# build. A validacao e feita na maquina de destino.
+    strip -s cpuminer
+# NAO rodar o binario aqui (--version / --cputest): o runner do GitHub nao e
+# Alder Lake e o processo morreria com "Illegal instruction" durante o build.
+# A validacao e feita na maquina de destino.
 
 FROM debian:bookworm-slim
-LABEL org.opencontainers.image.title="cpuminer-opt SHA-NI" \
-      org.opencontainers.image.description="cpuminer-opt compilado com -msha para sha256d acelerado por hardware" \
+LABEL org.opencontainers.image.title="cpuminer-opt SHA-NI (alderlake)" \
+      org.opencontainers.image.description="cpuminer-opt compilado com -march=alderlake para sha256d acelerado por SHA-NI" \
       org.opencontainers.image.source="https://github.com/JayDDee/cpuminer-opt" \
       org.opencontainers.image.licenses="GPL-2.0"
 
@@ -54,7 +57,7 @@ RUN set -eu; \
     rm -rf /var/lib/apt/lists/*; \
     useradd -u 1000 -m -s /usr/sbin/nologin cpuminer
 
-COPY --from=builder /usr/local/bin/cpuminer /usr/local/bin/cpuminer
+COPY --from=builder /src/cpuminer /usr/local/bin/cpuminer
 
 USER cpuminer
 WORKDIR /home/cpuminer

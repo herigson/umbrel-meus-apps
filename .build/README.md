@@ -5,7 +5,13 @@ pasta começa com ponto pra o umbreld não tentar interpretá-la como tal.
 
 ## cpuminer-sha
 
-`cpuminer-opt` compilado com `-msha` (SHA-NI), para o `meuapps-nerdminer`.
+`cpuminer-opt` compilado com `-march=alderlake` (AVX2 + SHA-NI + VAES), para o
+`meuapps-nerdminer`. É a receita do próprio autor para esse ISA
+(`build-allarch.sh`, alvo `cpuminer-alderlake`) — e o ISA do N100.
+
+> Tentativa que **não compila** (exit 2): `-march=x86-64-v3 -msha -mvaes`. Esse
+> nível não inclui AES nem PCLMUL, que o código assume quando há AVX2.
+> A imagem resultante só roda em Alder Lake+ — proposital.
 
 As imagens públicas de cpuminer/cpuminer-opt são compiladas com
 `-march=native` na máquina do mantenedor. Como esses runners não têm SHA-NI, o
