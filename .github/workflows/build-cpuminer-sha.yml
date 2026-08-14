@@ -1,0 +1,75 @@
+name: build cpuminer-sha
+
+# Publica ghcr.io/<owner>/cpuminer-sha com o cpuminer-opt compilado com SHA-NI.
+# Roda sozinho quando o Dockerfile muda, ou na mao em Actions -> Run workflow
+# (util pra subir uma versao nova do cpuminer-opt sem mexer no Dockerfile).
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.build/cpuminer-sha/**'
+      - '.github/workflows/build-cpuminer-sha.yml'
+  workflow_dispatch:
+    inputs:
+      cpuminer_version:
+        description: 'Tag do cpuminer-opt (ex: v27.4)'
+        required: false
+        default: 'v27.4'
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/cpuminer-sha
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Definir versao
+        id: ver
+        run: |
+          V="${{ github.event.inputs.cpuminer_version }}"
+          [ -z "$V" ] && V="v27.4"
+          echo "tag=$V" >> "$GITHUB_OUTPUT"
+          # v27.4 -> 27.4 (tag da imagem sem o "v")
+          echo "image_tag=${V#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .build/cpuminer-sha
+          # Binario com flags x86-64: nao faz sentido cross-buildar pra arm64.
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            CPUMINER_VERSION=${{ steps.ver.outputs.tag }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.image_tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo
+        run: |
+          echo "### Imagem publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ env.IMAGE }}:${{ steps.ver.outputs.image_tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Se for o primeiro build: Packages -> cpuminer-sha -> Package settings -> Change visibility -> Public." >> "$GITHUB_STEP_SUMMARY"
+          echo "Validar no Umbrel (deve aparecer SHA em 'SW features'):" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "sudo docker run --rm ${{ env.IMAGE }}:${{ steps.ver.outputs.image_tag }} --benchmark -a sha256d -t 1" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
