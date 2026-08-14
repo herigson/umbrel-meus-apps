@@ -17,7 +17,11 @@
 # Consequencia: a imagem so roda em CPUs Alder Lake ou mais novas. Isso e
 # proposital - ela existe para esta maquina.
 
-ARG CPUMINER_VERSION=v27.4
+# CUIDADO ao trocar de versao: a tag "v27.4" do upstream esta mal versionada -
+# ela contem o codigo 24.7 (AC_INIT diz 24.7 e o binario se identifica como
+# 24.7). A ultima versao real e a v26.1, que e o que o master tambem tem.
+# Sempre conferir o AC_INIT do configure.ac na tag antes de fixar aqui.
+ARG CPUMINER_VERSION=v26.1
 
 FROM debian:bookworm-slim AS builder
 ARG CPUMINER_VERSION

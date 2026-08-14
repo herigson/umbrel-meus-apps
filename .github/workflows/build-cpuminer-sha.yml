@@ -13,9 +13,9 @@ on:
   workflow_dispatch:
     inputs:
       cpuminer_version:
-        description: 'Tag do cpuminer-opt (ex: v27.4)'
+        description: 'Tag do cpuminer-opt (ex: v26.1). NAO usar v27.4 - tag mal versionada, contem codigo 24.7'
         required: false
-        default: 'v27.4'
+        default: 'v26.1'
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/cpuminer-sha
@@ -33,7 +33,7 @@ jobs:
         id: ver
         run: |
           V="${{ github.event.inputs.cpuminer_version }}"
-          [ -z "$V" ] && V="v27.4"
+          [ -z "$V" ] && V="v26.1"
           echo "tag=$V" >> "$GITHUB_OUTPUT"
           # v27.4 -> 27.4 (tag da imagem sem o "v")
           echo "image_tag=${V#v}" >> "$GITHUB_OUTPUT"

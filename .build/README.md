@@ -18,11 +18,21 @@ As imagens públicas de cpuminer/cpuminer-opt são compiladas com
 binário sai sem ela e o sha256d roda na velocidade do AVX2 puro — mesmo num
 CPU que tem a instrução. Medido no N100 do Umbrel:
 
-| Binário                     | SW features   | 1 thread   |
-| --------------------------- | ------------- | ---------- |
-| `cniweb/cpuminer-multi:1.3.7` (em uso antes) | —      | ~5.6 MH/s  |
-| `cniweb/cpuminer-opt:25.1`  | `AVX2 AES`    | ~5.55 MH/s |
-| `cpuminer-sha` (esta)       | deve incluir `SHA` | esperado 2–4× |
+Medido no N100 (1 thread, sem limite de CPU):
+
+| Binário                                      | SW features            | Hashrate    | Temp |
+| -------------------------------------------- | ---------------------- | ----------- | ---- |
+| `cniweb/cpuminer-multi:1.3.7` (em uso antes) | —                      | ~5.6 MH/s   | —    |
+| `cniweb/cpuminer-opt:25.1`                   | `AVX2 AES`             | ~5.55 MH/s  | 82°C |
+| `cpuminer-sha` (esta)                        | `AVX2 VAES SHA256`     | **~26.6 MH/s** | 75°C |
+
+**4,8× mais rápido e 7°C mais frio** — o hash sai do caminho das ALUs e vai
+pro silício dedicado do SHA-NI.
+
+> ⚠️ **Versão do upstream:** a tag `v27.4` do JayDDee está mal versionada — traz
+> o código **24.7** (foi com ela que o primeiro build saiu). A última real é a
+> **v26.1**, igual ao `master`. Conferir o `AC_INIT` do `configure.ac` na tag
+> antes de mudar o `CPUMINER_VERSION`.
 
 **Publicar:** Actions → *build cpuminer-sha* → Run workflow (ou push mexendo no
 Dockerfile). No primeiro build, tornar o pacote público:
