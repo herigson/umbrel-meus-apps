@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NerdMiner</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page:     #0d0d0d;
+    --surface:  #1a1a19;
+    --ink:      #ffffff;
+    --ink-2:    #c3c2b7;
+    --muted:    #898781;
+    --grid:     #2c2c2a;
+    --axis:     #383835;
+    --series:   #3987e5;
+    --good:     #0ca30c;
+    --warning:  #fab219;
+    --critical: #d03b3b;
+    --border:   rgba(255, 255, 255, 0.10);
+    --radius: 12px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--page);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+
+  header {
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap; margin-bottom: 18px;
+  }
+  h1 { font-size: 1.05rem; font-weight: 600; margin: 0; letter-spacing: .01em; }
+  .sub { color: var(--muted); font-size: .82rem; margin-left: auto; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: .78rem; color: var(--ink-2);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.ok   { background: var(--good); }
+  .dot.bad  { background: var(--critical); }
+  .dot.warn { background: var(--warning); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+  .card h2 {
+    font-size: .78rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--muted); margin: 0 0 10px;
+  }
+
+  .hero { display: flex; align-items: baseline; gap: 10px; }
+  .hero .value { font-size: 3rem; font-weight: 650; line-height: 1; }
+  .hero .unit  { font-size: 1.1rem; color: var(--ink-2); }
+
+  figure { margin: 14px 0 0; position: relative; }
+  svg { display: block; width: 100%; height: 190px; touch-action: none; }
+  .tip {
+    position: absolute; pointer-events: none; opacity: 0;
+    transform: translate(-50%, -100%);
+    background: var(--page); color: var(--ink);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 9px; font-size: .78rem; white-space: nowrap;
+    transition: opacity .1s linear;
+  }
+  .tip .t { color: var(--muted); font-size: .72rem; }
+
+  .tiles {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px;
+  }
+  .tile .k {
+    font-size: .74rem; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .tile .v { font-size: 1.45rem; font-weight: 600; }
+  .tile .n { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+
+  .lottery { text-align: center; padding: 26px 18px; }
+  .lottery .k {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted);
+  }
+  .lottery .v { font-size: 3.4rem; font-weight: 700; line-height: 1.1; }
+  .lottery .n { color: var(--ink-2); font-size: .86rem; }
+
+  details { margin-top: 6px; }
+  summary {
+    cursor: pointer; color: var(--ink-2); font-size: .82rem;
+    padding: 6px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: .8rem; }
+  th, td {
+    text-align: right; padding: 5px 8px;
+    border-bottom: 1px solid var(--grid);
+    font-variant-numeric: tabular-nums;
+  }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; }
+  .scroll { overflow-x: auto; max-height: 260px; overflow-y: auto; }
+
+  footer {
+    color: var(--muted); font-size: .78rem;
+    display: flex; gap: 14px; flex-wrap: wrap; padding: 4px 2px 0;
+  }
+  .banner {
+    background: var(--surface); border: 1px solid var(--critical);
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px;
+    color: var(--ink-2); font-size: .86rem;
+  }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>NerdMiner</h1>
+    <span class="pill" id="status"><span class="dot warn"></span><span id="statusText">conectando…</span></span>
+    <span class="sub" id="updated"></span>
+  </header>
+
+  <div class="banner hidden" id="banner"></div>
+
+  <section class="card">
+    <h2>Hashrate</h2>
+    <div class="hero">
+      <span class="value" id="hs">—</span>
+      <span class="unit" id="hsUnit"></span>
+    </div>
+    <figure>
+      <svg id="chart" role="img" aria-label="Hashrate ao longo do tempo"></svg>
+      <div class="tip" id="tip"></div>
+    </figure>
+    <details>
+      <summary>Ver dados do gráfico</summary>
+      <div class="scroll">
+        <table id="dataTable">
+          <thead><tr><th>Horário</th><th>Hashrate</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section class="tiles" id="tiles"></section>
+
+  <section class="card lottery">
+    <div class="k">Blocos encontrados</div>
+    <div class="v" id="sol">—</div>
+    <div class="n" id="ttf"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const CHART = { pad: { top: 12, right: 8, bottom: 22, left: 46 } };
+let state = { history: [], current: {}, error: null };
+
+/* ---------- formatadores ---------- */
+
+function hashrate(hs) {
+  const n = Number(hs) || 0;
+  if (n >= 1e9) return [(n / 1e9).toFixed(2), "GH/s"];
+  if (n >= 1e6) return [(n / 1e6).toFixed(2), "MH/s"];
+  if (n >= 1e3) return [(n / 1e3).toFixed(2), "kH/s"];
+  return [n.toFixed(0), "H/s"];
+}
+
+function duration(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d) return d + "d " + h + "h";
+  if (h) return h + "h " + m + "m";
+  return m + "m";
+}
+
+/* Tempo medio pra achar um bloco: dificuldade x 2^32 / hashrate. */
+function timeToBlock(diff, hs) {
+  const d = Number(diff) || 0, h = Number(hs) || 0;
+  if (!d || !h) return "—";
+  const years = (d * 4294967296) / h / 31557600;
+  if (years >= 1e9) return (years / 1e9).toFixed(1) + " bilhões de anos";
+  if (years >= 1e6) return (years / 1e6).toFixed(1) + " milhões de anos";
+  if (years >= 1e3) return Math.round(years / 1e3) + " mil anos";
+  if (years >= 1) return years.toFixed(1) + " anos";
+  return Math.round(years * 365) + " dias";
+}
+
+function clock(ts) {
+  return new Date(ts * 1000).toLocaleTimeString("pt-BR",
+    { hour: "2-digit", minute: "2-digit" });
+}
+
+/* ---------- grafico de area, base zero ---------- */
+
+function drawChart() {
+  const svg = $("chart");
+  const pts = state.history;
+  svg.innerHTML = "";
+  if (pts.length < 2) return;
+
+  const w = svg.clientWidth || 600;
+  const h = svg.clientHeight || 190;
+  const { top, right, bottom, left } = CHART.pad;
+  const plotW = Math.max(1, w - left - right);
+  const plotH = Math.max(1, h - top - bottom);
+
+  const t0 = pts[0][0], t1 = pts[pts.length - 1][0];
+  const span = Math.max(1, t1 - t0);
+  // Base zero: uma queda de hashrate (miner fora) precisa aparecer como queda.
+  const peak = Math.max(...pts.map((p) => p[1]), 1);
+  const yMax = peak * 1.15;
+
+  const X = (t) => left + ((t - t0) / span) * plotW;
+  const Y = (v) => top + plotH - (v / yMax) * plotH;
+
+  const ns = "http://www.w3.org/2000/svg";
+  const add = (tag, attrs, parent) => {
+    const el = document.createElementNS(ns, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    (parent || svg).appendChild(el);
+    return el;
+  };
+
+  const defs = add("defs", {});
+  const grad = add("linearGradient",
+    { id: "fill", x1: "0", y1: "0", x2: "0", y2: "1" }, defs);
+  add("stop", { offset: "0", "stop-color": "var(--series)", "stop-opacity": ".30" }, grad);
+  add("stop", { offset: "1", "stop-color": "var(--series)", "stop-opacity": "0" }, grad);
+
+  // Grade e rotulos do eixo Y (recessivos)
+  for (let i = 0; i <= 3; i++) {
+    const v = (yMax / 3) * i;
+    const y = Y(v);
+    add("line", {
+      x1: left, y1: y, x2: w - right, y2: y,
+      stroke: i === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1
+    });
+    const [val, unit] = hashrate(v);
+    const label = add("text", {
+      x: left - 8, y: y + 4, "text-anchor": "end",
+      fill: "var(--muted)", "font-size": "11"
+    });
+    label.style.fontVariantNumeric = "tabular-nums";
+    label.textContent = i === 0 ? "0" : val + (i === 3 ? " " + unit : "");
+  }
+
+  // Rotulos de tempo
+  for (let i = 0; i <= 3; i++) {
+    const t = t0 + (span / 3) * i;
+    const label = add("text", {
+      x: X(t), y: h - 6,
+      "text-anchor": i === 0 ? "start" : i === 3 ? "end" : "middle",
+      fill: "var(--muted)", "font-size": "11"
+    });
+    label.style.fontVariantNumeric = "tabular-nums";
+    label.textContent = clock(t);
+  }
+
+  const line = pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" ");
+  add("path", {
+    d: line + " L" + X(t1).toFixed(1) + " " + Y(0).toFixed(1) +
+       " L" + X(t0).toFixed(1) + " " + Y(0).toFixed(1) + " Z",
+    fill: "url(#fill)"
+  });
+  add("path", {
+    d: line, fill: "none", stroke: "var(--series)",
+    "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round"
+  });
+
+  // Camada de hover: linha-guia + marcador + tooltip
+  const cross = add("line", {
+    y1: top, y2: top + plotH, stroke: "var(--axis)",
+    "stroke-width": 1, opacity: 0
+  });
+  const marker = add("circle", {
+    r: 4, fill: "var(--series)", stroke: "var(--surface)",
+    "stroke-width": 2, opacity: 0
+  });
+  const tip = $("tip");
+
+  const onMove = (evt) => {
+    const box = svg.getBoundingClientRect();
+    const x = (evt.touches ? evt.touches[0].clientX : evt.clientX) - box.left;
+    const t = t0 + ((x - left) / plotW) * span;
+    let best = pts[0];
+    for (const p of pts) {
+      if (Math.abs(p[0] - t) < Math.abs(best[0] - t)) best = p;
+    }
+    const px = X(best[0]), py = Y(best[1]);
+    cross.setAttribute("x1", px); cross.setAttribute("x2", px);
+    cross.setAttribute("opacity", 1);
+    marker.setAttribute("cx", px); marker.setAttribute("cy", py);
+    marker.setAttribute("opacity", 1);
+    const [v, u] = hashrate(best[1]);
+    tip.innerHTML = "<strong>" + v + " " + u + "</strong><div class='t'>" + clock(best[0]) + "</div>";
+    tip.style.left = px + "px";
+    tip.style.top = (py - 10) + "px";
+    tip.style.opacity = 1;
+  };
+  const onLeave = () => {
+    cross.setAttribute("opacity", 0);
+    marker.setAttribute("opacity", 0);
+    $("tip").style.opacity = 0;
+  };
+  svg.addEventListener("mousemove", onMove);
+  svg.addEventListener("mouseleave", onLeave);
+  svg.addEventListener("touchmove", onMove, { passive: true });
+  svg.addEventListener("touchend", onLeave);
+}
+
+/* ---------- render ---------- */
+
+function tile(k, v, n) {
+  return "<div class='tile'><div class='k'>" + k + "</div><div class='v'>" + v +
+         "</div>" + (n ? "<div class='n'>" + n + "</div>" : "") + "</div>";
+}
+
+function render() {
+  const c = state.current || {};
+  const live = !state.error && Object.keys(c).length > 0;
+
+  // Status: cor + rotulo (a cor nunca carrega o significado sozinha)
+  const dot = $("status").querySelector(".dot");
+  dot.className = "dot " + (live ? "ok" : "bad");
+  $("statusText").textContent = live ? "minerando" : "sem contato com o miner";
+
+  const banner = $("banner");
+  if (state.error) {
+    banner.textContent = "Não foi possível ler a API do cpuminer — " + state.error;
+    banner.classList.remove("hidden");
+  } else {
+    banner.classList.add("hidden");
+  }
+
+  const [hsVal, hsUnit] = hashrate(c.HS);
+  $("hs").textContent = live ? hsVal : "—";
+  $("hsUnit").textContent = live ? hsUnit : "";
+
+  const acc = Number(c.ACC || 0), rej = Number(c.REJ || 0);
+  const total = acc + rej;
+  const rate = Number(c.ACCMN || 0);
+  $("tiles").innerHTML =
+    tile("Aceitos", acc.toLocaleString("pt-BR"),
+         total ? ((acc / total) * 100).toFixed(1) + "% do total" : "") +
+    tile("Rejeitados", rej.toLocaleString("pt-BR"),
+         total ? ((rej / total) * 100).toFixed(1) + "% do total" : "") +
+    tile("Share a cada", rate > 0 ? (1 / rate).toFixed(1) + " min" : "—",
+         rate > 0 ? rate.toFixed(2) + "/min" : "") +
+    tile("Temperatura", c.TEMP ? Math.round(c.TEMP) + " °C" : "—") +
+    tile("Frequência", c.FREQ ? (Number(c.FREQ) / 1000).toFixed(2) + " GHz" : "—",
+         c.CPUS ? c.CPUS + " thread(s)" : "") +
+    tile("Ligado há", c.UPTIME ? duration(c.UPTIME) : "—");
+
+  $("sol").textContent = c.SOL !== undefined ? c.SOL : "—";
+  $("ttf").textContent = live
+    ? "tempo médio estimado neste hashrate: " + timeToBlock(c.DIFF, c.HS)
+    : "";
+
+  $("footer").innerHTML = live
+    ? ["<span>" + (c.NAME || "cpuminer") + " " + (c.VER || "") + "</span>",
+       "<span>algoritmo: " + (c.ALGO || "—") + "</span>",
+       "<span>pool: " + (c.URL || "—") + "</span>"].join("")
+    : "";
+
+  const rows = state.history.slice(-60).reverse().map((p) => {
+    const [v, u] = hashrate(p[1]);
+    return "<tr><td>" + clock(p[0]) + "</td><td>" + v + " " + u + "</td></tr>";
+  }).join("");
+  $("dataTable").querySelector("tbody").innerHTML = rows;
+
+  $("updated").textContent = "atualizado " + new Date().toLocaleTimeString("pt-BR");
+  drawChart();
+}
+
+async function tick() {
+  try {
+    const res = await fetch("api/stats", { cache: "no-store" });
+    state = await res.json();
+  } catch (err) {
+    state.error = "painel não conseguiu falar com o próprio backend";
+  }
+  render();
+}
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawChart, 150);
+});
+
+tick();
+setInterval(tick, 5000);
+</script>
+</body>
+</html>

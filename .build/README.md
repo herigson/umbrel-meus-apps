@@ -3,6 +3,25 @@
 Imagens Docker próprias usadas pelos apps desta loja. **Não é um app** — a
 pasta começa com ponto pra o umbreld não tentar interpretá-la como tal.
 
+## nerdminer-ui
+
+Painel web do `meuapps-nerdminer`. Lê a API do cpuminer (TCP 4048, comando
+`summary`), guarda 2h de histórico em memória e serve um dashboard HTML.
+Python puro (stdlib), sem dependências.
+
+Sobe como o serviço `ui` no compose do app; o `app_proxy` aponta pra ele, então
+o botão **Open** finalmente abre algo — antes batia na API texto do cpuminer e
+o navegador só mostrava `ECONNRESET`.
+
+> ⚠️ **Pré-requisito no miner:** `--api-allow 0/0` no `command`. O padrão do
+> cpuminer é `default_api_allow = "127.0.0.1"`, que recusaria o painel (outro
+> container). A 4048 não é publicada no host — só a rede interna do app
+> alcança — e sem o prefixo `W:` o acesso é somente leitura.
+
+Campos que a API entrega: `NAME VER ALGO CPUS URL HS KHS ACC REJ SOL ACCMN
+DIFF TEMP FAN FREQ UPTIME TS`. O `SOL` é o contador de blocos resolvidos — o
+placar da loteria.
+
 ## cpuminer-sha
 
 `cpuminer-opt` compilado com `-march=alderlake` (AVX2 + SHA-NI + VAES), para o

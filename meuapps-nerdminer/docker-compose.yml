@@ -3,11 +3,10 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: meuapps-nerdminer_miner_1
-      # API interna do cpuminer (nao e uma UI web; o botao Open nao mostra
-      # nada util, igual ao Web Query do TS6).
-      APP_PORT: 4048
-      PROXY_AUTH_ADD: "false"
+      # O botao Open agora abre o painel (antes caia na API texto do cpuminer
+      # e o navegador so mostrava ECONNRESET).
+      APP_HOST: meuapps-nerdminer_ui_1
+      APP_PORT: 8080
 
   miner:
     # Build proprio do cpuminer-opt com SHA-NI (ver .build/cpuminer-sha).
@@ -33,10 +32,34 @@ services:
       - "1"
       - --api-bind
       - 0.0.0.0:4048
-    # 1 thread + meio nucleo: com SHA-NI isso ja da ~13 MH/s, mais que o
-    # dobro do que 2 threads davam antes, e sem passar dos 80 C (o episodio
-    # dos 89 C foi com 2 threads no binario sem SHA).
+      # Sem isto a API so aceita 127.0.0.1 (default_api_allow do cpuminer) e
+      # o painel leva "connection refused". A porta 4048 NAO e publicada no
+      # host: so quem esta na rede interna deste app alcanca. Sem o prefixo
+      # "W:" o acesso e somente leitura.
+      - --api-allow
+      - 0/0
+    # 1 thread + meio nucleo: com SHA-NI isso ja da ~11 MH/s, quatro vezes o
+    # que 2 threads davam antes, e sem passar dos 80 C (o episodio dos 89 C
+    # foi com 2 threads no binario sem SHA).
     deploy:
       resources:
         limits:
           cpus: "0.5"
+
+  ui:
+    # Painel web: le a API do miner e serve o dashboard (ver .build/nerdminer-ui).
+    image: ghcr.io/herigson/nerdminer-ui:1.0.0
+    restart: unless-stopped
+    depends_on:
+      - miner
+    environment:
+      MINER_HOST: miner
+      MINER_PORT: "4048"
+      LISTEN_PORT: "8080"
+      POLL_SECONDS: "10"
+      # 720 pontos a cada 10s = 2h de historico no grafico
+      HISTORY_POINTS: "720"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"

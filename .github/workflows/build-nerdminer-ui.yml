@@ -1,0 +1,71 @@
+name: build nerdminer-ui
+
+# Publica ghcr.io/<owner>/nerdminer-ui - o painel web do meuapps-nerdminer.
+# Roda sozinho quando algo em .build/nerdminer-ui muda, ou na mao em
+# Actions -> Run workflow.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.build/nerdminer-ui/**'
+      - '.github/workflows/build-nerdminer-ui.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da imagem (ex: 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/nerdminer-ui
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Definir tag
+        id: ver
+        run: |
+          T="${{ github.event.inputs.tag }}"
+          [ -z "$T" ] && T="1.0.0"
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+
+      - name: Checar sintaxe do app.py
+        run: python3 -m py_compile .build/nerdminer-ui/app.py
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .build/nerdminer-ui
+          # Python puro: vale pra amd64 e arm64.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo
+        run: |
+          echo "### Imagem publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "No primeiro build: Packages -> nerdminer-ui -> Package settings -> Change visibility -> Public." >> "$GITHUB_STEP_SUMMARY"
