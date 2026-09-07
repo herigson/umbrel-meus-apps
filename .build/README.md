@@ -3,6 +3,28 @@
 Imagens Docker próprias usadas pelos apps desta loja. **Não é um app** — a
 pasta começa com ponto pra o umbreld não tentar interpretá-la como tal.
 
+## ntp-ui
+
+Painel web do `meuapps-ntp`. Mostra o desvio do relógio, stratum, fonte de
+referência, último sync e a qualidade da sincronização, com gráfico histórico.
+Python puro (stdlib), sem dependências.
+
+**Por que fala o protocolo NTP em vez de usar `chronyc`:** o `startup.sh` da
+imagem `cturra/ntp` não escreve `cmdallow`/`bindcmdaddress` na config, então a
+porta de comando do chrony (323) só escuta em localhost — um container separado
+não a alcança. O painel então monta pacotes NTP na mão (48 bytes, stdlib).
+
+**Por que o desvio é medido contra fontes externas:** o painel e o chrony rodam
+em containers do mesmo host, logo compartilham o relógio do kernel. Comparar um
+com o outro daria offset zero sempre. Medir contra `a.st1.ntp.br`/`b.st1.ntp.br`
+é o que responde de verdade "a hora daqui está certa?".
+
+> ℹ️ **`chronyd -x`:** a imagem inicia o chrony com `-x`, que explicitamente
+> **não ajusta o relógio do sistema**. Por isso o app não usa `cap_add:
+> SYS_TIME` — não teria efeito. O container serve a hora do host e mede o
+> desvio para reportar; quem sincroniza o host é o serviço de tempo do próprio
+> umbrelOS.
+
 ## nerdminer-ui
 
 Painel web do `meuapps-nerdminer`. Lê a API do cpuminer (TCP 4048, comando

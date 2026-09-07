@@ -4,7 +4,7 @@ name: Servidor NTP (chrony)
 tagline: Servidor de hora (NTP) para toda a rede local
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f550.svg
 category: Networking
-version: "1.0.0"
+version: "1.1.0"
 port: 8123
 description: >-
   Servidor NTP local usando chrony (imagem cturra/ntp). O Umbrel passa a
@@ -19,13 +19,30 @@ description: >-
 
 
   Para usar: aponte o cliente NTP dos dispositivos (ou a opcao 42 do DHCP no
-  MikroTik) para o IP do Umbrel, porta 123/UDP. O botao Open mostra so uma
-  pagina de status simples.
+  MikroTik) para o IP do Umbrel, porta 123/UDP - o proprio painel traz os
+  comandos prontos pra MikroTik, Windows e Linux.
+
+
+  O botao Open abre um painel com o desvio do relogio medido contra as
+  fontes publicas, historico em grafico, stratum, fonte de referencia,
+  ultimo sync e a qualidade estimada da sincronizacao.
 releaseNotes: >-
-  Primeira versao. chrony via cturra/ntp (multi-arch), porta 123/UDP
-  publicada no host, upstream NTP.br + Cloudflare. Atencao: a imagem so tem
-  a tag latest - nao ha como fixar versao; um Update do app re-puxa a imagem
-  mais recente.
+  Troca a pagina estatica de status por um painel de verdade (imagem
+  ghcr.io/herigson/ntp-ui): desvio do relogio com grafico historico,
+  stratum, fonte de referencia, ultimo sync, erro estimado (root dispersion)
+  e a tabela das fontes externas. Traz tambem os comandos prontos pra
+  apontar MikroTik, Windows e Linux pro servidor.
+
+
+  O painel fala o proprio protocolo NTP - o chrony desta imagem nao expoe a
+  porta de comando (323) fora do localhost, entao chronyc remoto nao e
+  opcao. O desvio e medido contra as fontes publicas: comparar o painel com
+  o servidor local daria sempre zero, ja que os dois containers usam o mesmo
+  relogio do host.
+
+
+  Remove o cap_add SYS_TIME, que nao tinha efeito: o startup.sh da imagem
+  roda "chronyd -x", que explicitamente nao ajusta o relogio do sistema.
 developer: cturra (docker-ntp) / chrony
 website: https://github.com/cturra/docker-ntp
 submitter: herigson
