@@ -49,7 +49,7 @@ services:
 
   ui:
     # Painel web: le a API do miner e serve o dashboard (ver .build/nerdminer-ui).
-    image: ghcr.io/herigson/nerdminer-ui:1.0.1
+    image: ghcr.io/herigson/nerdminer-ui:1.0.2
     restart: unless-stopped
     depends_on:
       - miner

@@ -176,7 +176,7 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const CHART = { pad: { top: 12, right: 8, bottom: 22, left: 46 } };
+const CHART = { pad: { top: 16, right: 8, bottom: 22, left: 44 } };
 let state = { history: [], current: {}, error: null };
 
 /* ---------- formatadores ---------- */
@@ -253,6 +253,17 @@ function drawChart() {
   add("stop", { offset: "0", "stop-color": "var(--series)", "stop-opacity": ".30" }, grad);
   add("stop", { offset: "1", "stop-color": "var(--series)", "stop-opacity": "0" }, grad);
 
+  // Uma unidade so pro eixo inteiro: os ticks ficam numeros puros e a
+  // unidade aparece uma vez como legenda, senao o rotulo do topo estoura
+  // a margem esquerda.
+  const axisUnit = hashrate(yMax)[1];
+  const divisor = { "GH/s": 1e9, "MH/s": 1e6, "kH/s": 1e3, "H/s": 1 }[axisUnit];
+
+  const caption = add("text", {
+    x: 2, y: 10, fill: "var(--muted)", "font-size": "11"
+  });
+  caption.textContent = axisUnit;
+
   // Grade e rotulos do eixo Y (recessivos)
   for (let i = 0; i <= 3; i++) {
     const v = (yMax / 3) * i;
@@ -261,13 +272,12 @@ function drawChart() {
       x1: left, y1: y, x2: w - right, y2: y,
       stroke: i === 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1
     });
-    const [val, unit] = hashrate(v);
     const label = add("text", {
       x: left - 8, y: y + 4, "text-anchor": "end",
       fill: "var(--muted)", "font-size": "11"
     });
     label.style.fontVariantNumeric = "tabular-nums";
-    label.textContent = i === 0 ? "0" : val + (i === 3 ? " " + unit : "");
+    label.textContent = i === 0 ? "0" : (v / divisor).toFixed(1);
   }
 
   // Rotulos de tempo
@@ -373,7 +383,8 @@ function render() {
     tile("Share a cada", rate > 0 ? (1 / rate).toFixed(1) + " min" : "—",
          rate > 0 ? rate.toFixed(2) + "/min" : "") +
     tile("Temperatura", c.TEMP ? Math.round(c.TEMP) + " °C" : "—") +
-    tile("Frequência", c.FREQ ? (Number(c.FREQ) / 1000).toFixed(2) + " GHz" : "—",
+    // FREQ vem em kHz (o cpuminer le scaling_cur_freq do sysfs, que e kHz)
+    tile("Frequência", c.FREQ ? (Number(c.FREQ) / 1e6).toFixed(2) + " GHz" : "—",
          c.CPUS ? c.CPUS + " thread(s)" : "") +
     tile("Ligado há", c.UPTIME ? duration(c.UPTIME) : "—");
 

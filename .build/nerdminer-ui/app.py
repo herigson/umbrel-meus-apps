@@ -35,6 +35,7 @@ _current = {}
 _error = "aguardando a primeira leitura"
 _history = deque(maxlen=HISTORY_POINTS)
 _host_ok = None  # nome que respondeu da ultima vez
+_raw = None      # ultima resposta crua, exposta em /api/stats pra diagnostico
 
 
 def _talk(host, command):
@@ -79,14 +80,16 @@ def parse(raw):
 
 
 def poll_forever():
-    global _current, _error
+    global _current, _error, _raw
     while True:
         try:
-            fields = parse(ask())
+            answer = ask()
+            fields = parse(answer)
             if not fields:
                 raise ValueError("resposta vazia da API do miner")
             with _lock:
                 _current = fields
+                _raw = answer.strip()
                 _error = None
                 _history.append([int(time.time()), float(fields.get("HS", 0) or 0)])
         except Exception as exc:  # miner reiniciando, API fora, etc.
@@ -117,6 +120,7 @@ class Handler(BaseHTTPRequestHandler):
                     "pollSeconds": POLL_SECONDS,
                     "serverTime": int(time.time()),
                     "minerHost": _host_ok,
+                    "raw": _raw,
                 }
             self._send(200, json.dumps(payload).encode(), "application/json")
         elif path in ("/", "/index.html"):
