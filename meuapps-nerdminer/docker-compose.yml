@@ -48,12 +48,16 @@ services:
 
   ui:
     # Painel web: le a API do miner e serve o dashboard (ver .build/nerdminer-ui).
-    image: ghcr.io/herigson/nerdminer-ui:1.0.0
+    image: ghcr.io/herigson/nerdminer-ui:1.0.1
     restart: unless-stopped
     depends_on:
       - miner
     environment:
-      MINER_HOST: miner
+      # Na rede do Umbrel vale o nome COMPLETO do container (mesmo formato do
+      # APP_HOST); o nome curto "miner" nao resolve. O painel testa a lista em
+      # ordem e fica com o primeiro que responder - o ultimo item cobre a
+      # nomenclatura com hifen que o Compose v2 usa.
+      MINER_HOST: "meuapps-nerdminer_miner_1,miner,meuapps-nerdminer-miner-1"
       MINER_PORT: "4048"
       LISTEN_PORT: "8080"
       POLL_SECONDS: "10"

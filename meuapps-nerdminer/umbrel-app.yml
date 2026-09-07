@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "26.1.1"
+version: "26.1.2"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) apontado para o pool solo
@@ -29,7 +29,13 @@ description: >-
   blocos encontrados. Para as estatisticas do lado do pool, veja seu worker em
   https://web.public-pool.io informando seu endereco BTC.
 releaseNotes: >-
-  Adiciona um painel web proprio (servico "ui", imagem ghcr.io/herigson/
+  Corrige o painel, que subiu sem contato com o miner ("Name or service not
+  known"): na rede do Umbrel os containers se enxergam pelo nome completo
+  (meuapps-nerdminer_miner_1), nao pelo nome curto do servico. O painel agora
+  testa uma lista de nomes e usa o primeiro que responder.
+
+
+  Versao anterior (26.1.1) adicionou um painel web proprio (servico "ui", imagem ghcr.io/herigson/
   nerdminer-ui): hashrate ao vivo com grafico de 2h, shares, temperatura,
   frequencia, uptime, contador de blocos e o tempo medio estimado por bloco.
   O botao Open passa a abrir esse painel em vez de bater na API texto do

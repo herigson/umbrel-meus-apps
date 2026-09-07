@@ -13,9 +13,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag da imagem (ex: 1.0.0)'
+        description: 'Tag da imagem. Vazio = usa o arquivo .build/nerdminer-ui/VERSION'
         required: false
-        default: '1.0.0'
+        default: ''
 
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/nerdminer-ui
@@ -32,9 +32,12 @@ jobs:
       - name: Definir tag
         id: ver
         run: |
+          # Sem input (caso do push automatico) a versao vem do arquivo VERSION,
+          # senao todo push republicaria a mesma tag.
           T="${{ github.event.inputs.tag }}"
-          [ -z "$T" ] && T="1.0.0"
+          [ -z "$T" ] && T="$(tr -d ' \n\r' < .build/nerdminer-ui/VERSION)"
           echo "tag=$T" >> "$GITHUB_OUTPUT"
+          echo "publicando tag: $T"
 
       - name: Checar sintaxe do app.py
         run: python3 -m py_compile .build/nerdminer-ui/app.py

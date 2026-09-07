@@ -15,7 +15,13 @@ import time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-MINER_HOST = os.environ.get("MINER_HOST", "miner")
+# Lista de nomes a tentar, separados por virgula. Na rede do Umbrel os
+# containers se enxergam pelo nome completo (<app-id>_<servico>_1) - o mesmo
+# formato usado no APP_HOST do app_proxy; o nome curto do servico ("miner"),
+# que funciona no docker compose puro, nao resolve. A lista cobre os dois, e
+# tambem a nomenclatura com hifen que o Compose v2 usa.
+MINER_HOSTS = [h.strip() for h in
+               os.environ.get("MINER_HOST", "miner").split(",") if h.strip()]
 MINER_PORT = int(os.environ.get("MINER_PORT", "4048"))
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8080"))
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
@@ -28,11 +34,11 @@ _lock = threading.Lock()
 _current = {}
 _error = "aguardando a primeira leitura"
 _history = deque(maxlen=HISTORY_POINTS)
+_host_ok = None  # nome que respondeu da ultima vez
 
 
-def ask(command="summary"):
-    """Manda um comando pra API do cpuminer e devolve a resposta crua."""
-    with socket.create_connection((MINER_HOST, MINER_PORT), timeout=5) as sock:
+def _talk(host, command):
+    with socket.create_connection((host, MINER_PORT), timeout=5) as sock:
         sock.sendall(command.encode() + b"\n")
         chunks = []
         while True:
@@ -43,6 +49,23 @@ def ask(command="summary"):
             if b"|" in data:  # a resposta termina em "|"
                 break
     return b"".join(chunks).decode("utf-8", "replace")
+
+
+def ask(command="summary"):
+    """Fala com a API do cpuminer, testando cada nome ate um responder."""
+    global _host_ok
+    candidates = [_host_ok] if _host_ok else MINER_HOSTS
+    failures = []
+    for host in candidates:
+        try:
+            answer = _talk(host, command)
+            _host_ok = host
+            return answer
+        except OSError as exc:
+            failures.append("%s (%s)" % (host, exc))
+    # o nome que funcionava parou: na proxima volta testa a lista toda
+    _host_ok = None
+    raise OSError("nenhum nome respondeu: " + "; ".join(failures))
 
 
 def parse(raw):
@@ -93,6 +116,7 @@ class Handler(BaseHTTPRequestHandler):
                     "error": _error,
                     "pollSeconds": POLL_SECONDS,
                     "serverTime": int(time.time()),
+                    "minerHost": _host_ok,
                 }
             self._send(200, json.dumps(payload).encode(), "application/json")
         elif path in ("/", "/index.html"):
@@ -113,8 +137,9 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     threading.Thread(target=poll_forever, daemon=True).start()
     server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Handler)
-    print("nerdminer-ui na porta %d, lendo %s:%d a cada %ds"
-          % (LISTEN_PORT, MINER_HOST, MINER_PORT, POLL_SECONDS), flush=True)
+    print("nerdminer-ui na porta %d, tentando %s:%d a cada %ds"
+          % (LISTEN_PORT, "/".join(MINER_HOSTS), MINER_PORT, POLL_SECONDS),
+          flush=True)
     server.serve_forever()
 
 
