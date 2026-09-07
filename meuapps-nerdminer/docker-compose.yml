@@ -30,14 +30,15 @@ services:
       - x
       - -t
       - "1"
+      # O --api-bind ja define QUEM pode conectar e em que porta, no formato
+      # <ip>:<porta>. O literal 0.0.0.0 e o "aceita todos" do cpuminer
+      # (ALLIP4 no api.c: zera ip e mascara), necessario pro painel, que fala
+      # de outro container. NAO existe a opcao --api-allow: passa-la derruba
+      # o miner em loop ("unrecognized option").
+      # A 4048 nao e publicada no host - so a rede interna do app alcanca -
+      # e o acesso e somente leitura (comandos remotos exigem --api-remote).
       - --api-bind
       - 0.0.0.0:4048
-      # Sem isto a API so aceita 127.0.0.1 (default_api_allow do cpuminer) e
-      # o painel leva "connection refused". A porta 4048 NAO e publicada no
-      # host: so quem esta na rede interna deste app alcanca. Sem o prefixo
-      # "W:" o acesso e somente leitura.
-      - --api-allow
-      - 0/0
     # 1 thread + meio nucleo: com SHA-NI isso ja da ~11 MH/s, quatro vezes o
     # que 2 threads davam antes, e sem passar dos 80 C (o episodio dos 89 C
     # foi com 2 threads no binario sem SHA).

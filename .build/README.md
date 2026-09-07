@@ -13,10 +13,16 @@ Sobe como o serviço `ui` no compose do app; o `app_proxy` aponta pra ele, entã
 o botão **Open** finalmente abre algo — antes batia na API texto do cpuminer e
 o navegador só mostrava `ECONNRESET`.
 
-> ⚠️ **Pré-requisito no miner:** `--api-allow 0/0` no `command`. O padrão do
-> cpuminer é `default_api_allow = "127.0.0.1"`, que recusaria o painel (outro
-> container). A 4048 não é publicada no host — só a rede interna do app
-> alcança — e sem o prefixo `W:` o acesso é somente leitura.
+> ⚠️ **Pré-requisito no miner:** `--api-bind 0.0.0.0:4048`. No cpuminer esse
+> parâmetro define **quem pode conectar e em que porta**, no formato
+> `<ip>:<porta>` — e o literal `0.0.0.0` é o "aceita todos" (`ALLIP4` no
+> `api.c`, que zera ip e máscara). Sem isso o padrão é só `127.0.0.1` e o
+> painel, que fala de outro container, leva recusa.
+>
+> **Não existe a opção `--api-allow`** (foi tentada na 26.1.1 e derrubou o
+> miner em loop de restart: *unrecognized option*). A 4048 não é publicada no
+> host — só a rede interna do app alcança — e comandos remotos exigem
+> `--api-remote`, que não usamos.
 
 Campos que a API entrega: `NAME VER ALGO CPUS URL HS KHS ACC REJ SOL ACCMN
 DIFF TEMP FAN FREQ UPTIME TS`. O `SOL` é o contador de blocos resolvidos — o

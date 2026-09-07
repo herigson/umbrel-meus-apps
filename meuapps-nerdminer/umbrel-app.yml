@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "26.1.2"
+version: "26.1.3"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) apontado para o pool solo
@@ -29,7 +29,19 @@ description: >-
   blocos encontrados. Para as estatisticas do lado do pool, veja seu worker em
   https://web.public-pool.io informando seu endereco BTC.
 releaseNotes: >-
-  Corrige o painel, que subiu sem contato com o miner ("Name or service not
+  CORRECAO URGENTE: a versao 26.1.1 passou "--api-allow" pro cpuminer, opcao
+  que NAO existe - o miner saia na inicializacao e ficava em loop de restart,
+  ou seja, parou de minerar. O parametro foi removido. Quem estiver em
+  26.1.1/26.1.2 deve atualizar (ou apagar as duas linhas do --api-allow no
+  docker-compose.yml e reiniciar o app).
+
+
+  O --api-bind 0.0.0.0:4048, que ja existia, sozinho ja libera o acesso de
+  qualquer origem: no cpuminer o literal 0.0.0.0 significa "aceita todos"
+  (ALLIP4 no api.c).
+
+
+  Tambem corrige o painel, que subia sem contato com o miner ("Name or service not
   known"): na rede do Umbrel os containers se enxergam pelo nome completo
   (meuapps-nerdminer_miner_1), nao pelo nome curto do servico. O painel agora
   testa uma lista de nomes e usa o primeiro que responder.
