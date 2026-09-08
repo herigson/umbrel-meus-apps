@@ -4,7 +4,7 @@ name: Servidor NTP (chrony)
 tagline: Servidor de hora (NTP) para toda a rede local
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f550.svg
 category: Networking
-version: "1.1.0"
+version: "1.2.0"
 port: 8123
 description: >-
   Servidor NTP local usando chrony (imagem cturra/ntp). O Umbrel passa a
@@ -23,15 +23,27 @@ description: >-
   comandos prontos pra MikroTik, Windows e Linux.
 
 
-  O botao Open abre um painel com o desvio do relogio medido contra as
-  fontes publicas, historico em grafico, stratum, fonte de referencia,
-  ultimo sync e a qualidade estimada da sincronizacao.
+  O botao Open abre um painel com a hora servida e o fuso configurado, o
+  desvio do relogio medido contra as fontes publicas, historico em grafico,
+  stratum, fonte de referencia, ultimo sync e a qualidade da sincronizacao.
 releaseNotes: >-
-  Troca a pagina estatica de status por um painel de verdade (imagem
-  ghcr.io/herigson/ntp-ui): desvio do relogio com grafico historico,
-  stratum, fonte de referencia, ultimo sync, erro estimado (root dispersion)
-  e a tabela das fontes externas. Traz tambem os comandos prontos pra
-  apontar MikroTik, Windows e Linux pro servidor.
+  Painel ganha o relogio: hora servida em destaque (com o segundo correndo),
+  data por extenso e o fuso configurado, com a sigla e o deslocamento em
+  relacao ao UTC. A hora exibida e a do SERVIDOR - o painel calcula a
+  diferenca pro relogio do navegador, entao continua correta mesmo num
+  dispositivo desacertado. O fuso vem da variavel TZ do container e nao
+  afeta o protocolo, que trafega UTC.
+
+
+  Sai a secao com os comandos de configuracao de dispositivos: eram
+  especificos de uma rede. No lugar, o cartao do relogio mostra o endereco e
+  a porta em que o servidor esta atendendo.
+
+
+  Versao anterior (1.1.0): trocou a pagina estatica de status por um painel
+  de verdade (imagem ghcr.io/herigson/ntp-ui), com desvio do relogio em
+  grafico historico, stratum, fonte de referencia, ultimo sync, erro
+  estimado (root dispersion) e a tabela das fontes externas.
 
 
   O painel fala o proprio protocolo NTP - o chrony desta imagem nao expoe a

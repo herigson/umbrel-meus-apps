@@ -6,7 +6,14 @@ LABEL org.opencontainers.image.title="ntp-ui" \
       org.opencontainers.image.description="Painel web do servidor NTP (meuapps-ntp)" \
       org.opencontainers.image.source="https://github.com/herigson/umbrel-meus-apps"
 
-RUN useradd -u 1000 -m -s /usr/sbin/nologin painel
+# tzdata: o painel formata a hora no fuso configurado em TZ.
+RUN set -eu; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends tzdata; \
+    rm -rf /var/lib/apt/lists/*; \
+    useradd -u 1000 -m -s /usr/sbin/nologin painel
+
+ENV TZ=UTC
 
 WORKDIR /app
 COPY app.py index.html ./

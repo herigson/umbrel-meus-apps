@@ -17,6 +17,7 @@ Duas medidas, com significados diferentes:
 So biblioteca padrao.
 """
 
+import datetime
 import json
 import os
 import socket
@@ -25,6 +26,11 @@ import threading
 import time
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+# Fuso do relogio exibido no painel. O NTP em si e agnostico (trafega UTC);
+# isto e so apresentacao.
+if os.environ.get("TZ"):
+    time.tzset()
 
 # Na rede do Umbrel vale o nome completo do container; o nome curto do
 # servico nao resolve. A lista e testada em ordem.
@@ -94,6 +100,21 @@ def ntp_query(host, port=123, timeout=5):
         # Formulas classicas do NTP
         "offset": ((t2 - t1) + (t3 - t4)) / 2,
         "delay": (t4 - t1) - (t3 - t2),
+    }
+
+
+def clock_info():
+    """Hora servida e fuso configurado, pro relogio do painel."""
+    now = datetime.datetime.now().astimezone()
+    offset = now.utcoffset() or datetime.timedelta(0)
+    total = int(offset.total_seconds())
+    sign = "+" if total >= 0 else "-"
+    hours, minutes = divmod(abs(total) // 60, 60)
+    return {
+        "epoch": time.time(),
+        "timezone": os.environ.get("TZ") or "UTC",
+        "abbreviation": now.tzname() or "UTC",
+        "utcOffset": "%s%02d:%02d" % (sign, hours, minutes),
     }
 
 
@@ -175,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
                     "local": dict(_local),
                     "references": list(_references),
                     "history": list(_history),
-                    "serverTime": int(time.time()),
+                    "clock": clock_info(),
                     "referencePoll": REFERENCE_POLL,
                 }
             self._send(200, json.dumps(payload).encode(), "application/json")

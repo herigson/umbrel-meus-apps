@@ -94,12 +94,21 @@
   details { margin-top: 6px; }
   summary { cursor: pointer; color: var(--ink-2); font-size: .82rem; padding: 6px 0; }
 
-  pre {
-    background: var(--page); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px; overflow-x: auto;
-    font-size: .78rem; color: var(--ink-2); margin: 8px 0 0;
+  .clockcard { text-align: center; padding: 26px 18px 20px; }
+  .clockcard .time {
+    font-size: clamp(2.6rem, 12vw, 4.4rem); font-weight: 650;
+    line-height: 1; letter-spacing: -.01em;
+    font-variant-numeric: tabular-nums;
   }
-  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .clockcard .date {
+    color: var(--ink-2); font-size: .95rem; margin-top: 8px;
+    text-transform: capitalize;
+  }
+  .clockcard .zone { color: var(--muted); font-size: .82rem; margin-top: 2px; }
+  .clockcard .serving {
+    color: var(--muted); font-size: .78rem; margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--grid);
+  }
 
   .banner {
     background: var(--surface); border: 1px solid var(--critical);
@@ -119,6 +128,13 @@
   </header>
 
   <div class="banner hidden" id="banner"></div>
+
+  <section class="card clockcard">
+    <div class="time" id="time">--:--:--</div>
+    <div class="date" id="date"></div>
+    <div class="zone" id="zone"></div>
+    <div class="serving" id="serving"></div>
+  </section>
 
   <section class="card">
     <h2>Desvio do relógio</h2>
@@ -154,28 +170,6 @@
     </div>
   </section>
 
-  <section class="card">
-    <h2>Como apontar seus dispositivos</h2>
-    <p class="hint">Servidor NTP em <strong id="selfAddr">este Umbrel</strong>, porta 123/UDP.</p>
-    <details open>
-      <summary>MikroTik (roteador + toda a rede via DHCP)</summary>
-<pre><code>/system ntp client set enabled=yes servers=<span class="ip">IP_DO_UMBREL</span>
-/ip dhcp-server network set [find] ntp-server=<span class="ip">IP_DO_UMBREL</span></code></pre>
-    </details>
-    <details>
-      <summary>Windows (ignora a option 42 do DHCP)</summary>
-<pre><code>w32tm /config /manualpeerlist:<span class="ip">IP_DO_UMBREL</span> /syncfromflags:manual /update
-w32tm /resync
-w32tm /stripchart /computer:<span class="ip">IP_DO_UMBREL</span> /samples:3</code></pre>
-    </details>
-    <details>
-      <summary>Linux (systemd-timesyncd)</summary>
-<pre><code># /etc/systemd/timesyncd.conf
-[Time]
-NTP=<span class="ip">IP_DO_UMBREL</span></code></pre>
-    </details>
-  </section>
-
   <footer style="color:var(--muted);font-size:.78rem;padding:4px 2px 0" id="footer"></footer>
 </div>
 
@@ -185,6 +179,10 @@ NTP=<span class="ip">IP_DO_UMBREL</span></code></pre>
 const $ = (id) => document.getElementById(id);
 const CHART = { pad: { top: 16, right: 8, bottom: 22, left: 52 } };
 let state = { local: {}, references: [], history: [] };
+// Diferenca entre o relogio do servidor e o do navegador. O painel mostra a
+// hora SERVIDA, entao o relogio continua certo mesmo num dispositivo atrasado.
+let skew = 0;
+let zone = null;
 
 /* ---------- formatadores ---------- */
 
@@ -220,6 +218,33 @@ function quality(offsetSeconds) {
   if (ms < 50) return { cls: "ok", label: "sincronizado" };
   if (ms < 500) return { cls: "warn", label: "desvio perceptível" };
   return { cls: "bad", label: "fora de sincronia" };
+}
+
+/* ---------- relogio ---------- */
+
+function tzOptions(base) {
+  const opts = Object.assign({}, base);
+  // Formata no fuso do servidor. Se o navegador nao conhecer o nome IANA,
+  // cai no fuso local em vez de quebrar.
+  if (zone && zone.timezone) {
+    try {
+      new Intl.DateTimeFormat("pt-BR", { timeZone: zone.timezone });
+      opts.timeZone = zone.timezone;
+    } catch (err) { /* fuso desconhecido: usa o local */ }
+  }
+  return opts;
+}
+
+function tickClock() {
+  const now = new Date((Date.now() / 1000 + skew) * 1000);
+  $("time").textContent = now.toLocaleTimeString("pt-BR",
+    tzOptions({ hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+  $("date").textContent = now.toLocaleDateString("pt-BR",
+    tzOptions({ weekday: "long", day: "2-digit", month: "long", year: "numeric" }));
+  if (zone) {
+    $("zone").textContent = zone.timezone + " · " + zone.abbreviation +
+                            " · UTC" + zone.utcOffset;
+  }
 }
 
 /* ---------- grafico: linha com zero de referencia ---------- */
@@ -385,10 +410,9 @@ function render() {
            signed(r.offset) + "</td><td>" + seconds(r.delay).join(" ") + "</td></tr>";
   }).join("") || "<tr><td colspan='4' style='color:var(--muted)'>aguardando…</td></tr>";
 
-  document.querySelectorAll(".ip").forEach((el) => {
-    el.textContent = location.hostname || "IP_DO_UMBREL";
-  });
-  $("selfAddr").textContent = location.hostname || "este Umbrel";
+  $("serving").textContent = serving
+    ? "servindo em " + (location.hostname || "este servidor") + " · porta 123/UDP"
+    : "o servidor NTP não está respondendo";
 
   $("dataTable").querySelector("tbody").innerHTML = state.history.slice(-60).reverse()
     .map((p) => "<tr><td>" + clock(p[0]) + "</td><td>" + signed(p[1]) + "</td></tr>").join("");
@@ -404,10 +428,15 @@ async function tick() {
   try {
     const res = await fetch("api/stats", { cache: "no-store" });
     state = await res.json();
+    if (state.clock) {
+      zone = state.clock;
+      skew = state.clock.epoch - Date.now() / 1000;
+    }
   } catch (err) {
     state.local = { error: "painel não conseguiu falar com o próprio backend" };
   }
   render();
+  tickClock();
 }
 
 let resizeTimer;
@@ -418,6 +447,7 @@ window.addEventListener("resize", () => {
 
 tick();
 setInterval(tick, 10000);
+setInterval(tickClock, 1000);
 </script>
 </body>
 </html>
