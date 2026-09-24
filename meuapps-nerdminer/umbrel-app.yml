@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "26.2.1"
+version: "26.2.2"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
@@ -26,14 +26,35 @@ description: >-
 
 
   O botao Open abre um painel proprio com hashrate ao vivo e historico de 2h,
-  shares aceitos e rejeitados, temperatura, frequencia, uptime e o contador de
-  blocos encontrados. O painel sonda a pool por conta propria e avisa quando
-  ela cai - a API do cpuminer responde mesmo sem pool nenhuma, entao "o miner
-  esta vivo" nao e a mesma coisa que "estou minerando". Para as estatisticas
-  do lado do pool, veja seu worker em https://web.public-pool.io informando
-  seu endereco BTC.
+  temperatura, frequencia, uptime e o contador de blocos encontrados. O painel
+  sonda o node por conta propria e avisa quando ele cai - a API do cpuminer
+  responde mesmo sem ninguem do outro lado, entao "o miner esta vivo" nao e a
+  mesma coisa que "estou minerando".
 releaseNotes: >-
-  Correcao da 26.2.0, que sumiu da loja: o manifesto ficou com a chave
+  Corrige um BUG DO PROPRIO CPUMINER-OPT que o painel expunha: o rodape
+  mostrava "algoritmo: 218750" em vez de "sha256d". Nao era erro de leitura -
+  a API do miner emitia isso mesmo.
+
+
+  Causa: em api.c o buffer "char diff_str[16]" recebe a dificuldade impressa
+  com 6 decimais. Na mainnet isso da 22 caracteres + terminador = 23 bytes.
+  Os 7 que sobram invadem o buffer vizinho ("char algo[64]"), e sobra la o
+  final do numero. O DIFF so aparecia inteiro por acidente, porque o %s lia
+  alem do diff_str e emendava no algo. E um estouro de pilha, disparado a
+  cada chamada de summary - ou seja, a cada poll do painel.
+
+
+  Como a imagem e build proprio, o patch vai no Dockerfile: diff_str passa a
+  48 bytes. Ha greps antes e depois do sed para o build FALHAR se o upstream
+  mudar a linha, em vez de aplicar um patch vazio em silencio.
+
+
+  A imagem ganhou sufixo de revisao: 26.1 -> 26.1-r1. Sem isso, dois builds
+  de conteudo diferente ficariam com a mesma tag. O sufixo sai do arquivo
+  .build/cpuminer-sha/REVISION.
+
+
+  A 26.2.1 corrigiu o manifesto que sumiu da loja: o manifesto ficou com a chave
   "dependencies" DUPLICADA - a nova no topo e a "dependencies: []" que ja
   existia no fim do arquivo. YAML com chave repetida e recusado pelo parser
   do umbreld, entao o app inteiro era descartado do registro (os containers
@@ -144,7 +165,7 @@ website: https://github.com/JayDDee/cpuminer-opt
 submitter: herigson
 submission: https://github.com/herigson/umbrel-meus-apps
 repo: https://github.com/JayDDee/cpuminer-opt
-support: https://web.public-pool.io
+support: https://github.com/herigson/umbrel-meus-apps
 gallery:
   - https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 dependencies:

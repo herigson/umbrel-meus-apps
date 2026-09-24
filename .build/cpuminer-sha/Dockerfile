@@ -38,6 +38,30 @@ RUN set -eu; \
         https://github.com/JayDDee/cpuminer-opt.git /src
 
 WORKDIR /src
+
+# CORRECAO DE BUG DO UPSTREAM (presente na v26.1 e no master em 24/09/2026):
+# estouro de buffer de pilha no comando "summary" da API. Em api.c:
+#
+#     char algo[64];        // linha 137
+#     char diff_str[16];    // linha 142
+#     sprintf( diff_str, "%.6f", diff );
+#
+# A dificuldade da mainnet impressa com 6 decimais da 22 caracteres + \0 = 23
+# bytes, num buffer de 16. Os 7 que sobram invadem o buffer vizinho (algo).
+# Sintoma visivel: "ALGO=218750" (os ultimos digitos do DIFF) no lugar de
+# "ALGO=sha256d" - e o DIFF so aparece completo por acidente, porque o %s le
+# alem do diff_str e emenda no algo.
+#
+# Acontece a CADA chamada de summary, ou seja, a cada poll do painel.
+#
+# Os greps sao de proposito: se o upstream mudar essa linha, o build FALHA em
+# vez de aplicar um patch silenciosamente vazio.
+RUN set -eu; \
+    grep -q 'char diff_str\[16\];' api.c; \
+    sed -i 's/char diff_str\[16\];/char diff_str[48];/' api.c; \
+    grep -q 'char diff_str\[48\];' api.c; \
+    echo "patch do diff_str aplicado"
+
 RUN set -eu; \
     gcc --version | head -1; \
     ./autogen.sh; \

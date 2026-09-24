@@ -12,7 +12,7 @@ services:
     # Build proprio do cpuminer-opt com SHA-NI (ver .build/cpuminer-sha).
     # As imagens publicas sao compiladas sem SHA e rendem ~5.5 MH/s por
     # thread neste N100; esta rende ~27 MH/s por thread e roda mais fria.
-    image: ghcr.io/herigson/cpuminer-sha:26.1
+    image: ghcr.io/herigson/cpuminer-sha:26.1-r1
     restart: unless-stopped
     # A imagem tem ENTRYPOINT ["cpuminer"], entao aqui vao SO os argumentos -
     # nao repetir "cpuminer" na primeira linha (era assim na imagem antiga).

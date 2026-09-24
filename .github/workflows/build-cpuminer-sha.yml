@@ -35,8 +35,15 @@ jobs:
           V="${{ github.event.inputs.cpuminer_version }}"
           [ -z "$V" ] && V="v26.1"
           echo "tag=$V" >> "$GITHUB_OUTPUT"
-          # v27.4 -> 27.4 (tag da imagem sem o "v")
-          echo "image_tag=${V#v}" >> "$GITHUB_OUTPUT"
+          # v27.4 -> 27.4 (tag da imagem sem o "v"), mais o sufixo de revisao
+          # do arquivo REVISION. A revisao distingue builds NOSSOS do mesmo
+          # codigo upstream - ex.: o patch do diff_str no Dockerfile. Sem ela,
+          # duas imagens diferentes ficariam com a mesma tag "26.1".
+          REV=""
+          if [ -f .build/cpuminer-sha/REVISION ]; then
+            REV="-$(tr -d ' \n\r' < .build/cpuminer-sha/REVISION)"
+          fi
+          echo "image_tag=${V#v}${REV}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
