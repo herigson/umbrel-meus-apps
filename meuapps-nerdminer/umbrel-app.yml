@@ -4,10 +4,8 @@ name: NerdMiner CPU (Loteria)
 tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "26.2.0"
+version: "26.2.1"
 port: 4048
-dependencies:
-  - bitcoin
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
   proprio Bitcoin Node, via getblocktemplate - sem pool, sem intermediario,
@@ -35,6 +33,13 @@ description: >-
   do lado do pool, veja seu worker em https://web.public-pool.io informando
   seu endereco BTC.
 releaseNotes: >-
+  Correcao da 26.2.0, que sumiu da loja: o manifesto ficou com a chave
+  "dependencies" DUPLICADA - a nova no topo e a "dependencies: []" que ja
+  existia no fim do arquivo. YAML com chave repetida e recusado pelo parser
+  do umbreld, entao o app inteiro era descartado do registro (os containers
+  seguiam rodando; so a entrada na loja sumia). Agora ha uma unica chave.
+
+
   MINERACAO SOLO CONTRA O SEU PROPRIO NODE. O app deixa de depender do
   public-pool.io: o cpuminer fala getblocktemplate direto com o Bitcoin Core
   do seu Umbrel e submete o bloco ele mesmo via submitblock. Sem pool, sem
@@ -142,7 +147,8 @@ repo: https://github.com/JayDDee/cpuminer-opt
 support: https://web.public-pool.io
 gallery:
   - https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
-dependencies: []
+dependencies:
+  - bitcoin
 path: ""
 defaultUsername: ""
 defaultPassword: ""
