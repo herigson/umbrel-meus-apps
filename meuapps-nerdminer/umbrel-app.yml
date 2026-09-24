@@ -4,11 +4,14 @@ name: NerdMiner CPU (Loteria)
 tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "26.1.5"
+version: "26.2.0"
 port: 4048
+dependencies:
+  - bitcoin
 description: >-
-  Minerador de Bitcoin por CPU (cpuminer-opt) apontado para o pool solo
-  public-pool.io - o mesmo usado pelos NerdMiners. Funciona como uma loteria:
+  Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
+  proprio Bitcoin Node, via getblocktemplate - sem pool, sem intermediario,
+  sem taxa. Funciona como uma loteria:
   a chance de achar um bloco e minuscula, mas se acontecer, a recompensa
   inteira vai para o SEU endereco Bitcoin.
 
@@ -32,7 +35,42 @@ description: >-
   do lado do pool, veja seu worker em https://web.public-pool.io informando
   seu endereco BTC.
 releaseNotes: >-
-  O painel agora distingue "o miner esta vivo" de "estou minerando". Ate aqui
+  MINERACAO SOLO CONTRA O SEU PROPRIO NODE. O app deixa de depender do
+  public-pool.io: o cpuminer fala getblocktemplate direto com o Bitcoin Core
+  do seu Umbrel e submete o bloco ele mesmo via submitblock. Sem pool, sem
+  intermediario, sem taxa - se voce achar um bloco, a recompensa inteira mais
+  as taxas vao direto pro endereco em --coinbase-addr.
+
+
+  Motivacao concreta: em 23/09/2026 a public-pool.io ficou mais de um dia
+  fora do ar e a mineracao parou junto. Com o node proprio some essa
+  dependencia.
+
+
+  O app agora declara dependencia do Bitcoin Node e consome as variaveis que
+  ele exporta (APP_BITCOIN_NODE_IP, APP_BITCOIN_RPC_USER/PASS, RPC_PORT) -
+  mesmo padrao do Electrs oficial. Nenhuma credencial fica escrita no
+  repositorio.
+
+
+  ATENCAO: em solo o coinbase paga EXATAMENTE o endereco configurado, e nao
+  ha operador de pool pra corrigir engano. Confira caractere a caractere
+  depois de editar o compose. O caminho de submitblock so executa quando um
+  bloco e achado - se quiser ensaiar antes, da pra rodar a mesma configuracao
+  contra um bitcoind em regtest, onde blocos aparecem em segundos.
+
+
+  No painel (nerdminer-ui 1.2.0): o modo solo e detectado pelo esquema da URL
+  (http:// = GBT, stratum+tcp:// = pool). Em solo nao existem shares, entao os
+  quadros de share dao lugar a um quadro "Modo", a deteccao de share
+  estagnada e desligada e o alvo passa a se chamar "node" em vez de "pool".
+
+
+  Pra voltar ao pool publico, o compose traz o bloco comentado com as linhas
+  a trocar.
+
+
+  A 26.1.5 fez o painel distinguir "o miner esta vivo" de "estou minerando". Ate aqui
   ele so perguntava se a API do cpuminer respondia - e ela responde mesmo com
   a pool fora, entao numa queda do public-pool.io o painel seguia dizendo
   "minerando", com o ultimo hashrate congelado e o grafico numa linha reta.

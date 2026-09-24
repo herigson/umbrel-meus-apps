@@ -17,17 +17,33 @@ services:
     # A imagem tem ENTRYPOINT ["cpuminer"], entao aqui vao SO os argumentos -
     # nao repetir "cpuminer" na primeira linha (era assim na imagem antiga).
     #
+    # MINERACAO SOLO CONTRA O PROPRIO NODE (desde 26.2.0).
+    # O cpuminer fala getblocktemplate direto com o Bitcoin Core e submete o
+    # bloco ele mesmo via submitblock - nao existe pool no meio. O esquema da
+    # URL e que decide: http:// = GBT, stratum+tcp:// = pool.
+    #
     # TROQUE SEU_ENDERECO_BTC pelo seu endereco Bitcoin real (bc1..., em
-    # minusculas). O sufixo .umbrel e so o nome do worker no dashboard.
+    # minusculas). Em solo o coinbase paga EXATAMENTE esse endereco: confira
+    # caractere a caractere, nao ha operador de pool pra corrigir engano.
+    #
+    # Pra voltar ao pool publico, troque as 6 linhas de -o/-u/-p por:
+    #   - -o
+    #   - stratum+tcp://public-pool.io:21496
+    #   - -u
+    #   - SEU_ENDERECO_BTC.umbrel
+    #   - -p
+    #   - x
+    # e ajuste o POOL_URL do servico ui pro mesmo endereco.
     command:
       - -a
       - sha256d
       - -o
-      - stratum+tcp://public-pool.io:21496
+      - http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}
       - -u
-      - SEU_ENDERECO_BTC.umbrel
+      - ${APP_BITCOIN_RPC_USER}
       - -p
-      - x
+      - ${APP_BITCOIN_RPC_PASS}
+      - --coinbase-addr=SEU_ENDERECO_BTC
       - -t
       - "1"
       # O --api-bind ja define QUEM pode conectar e em que porta, no formato
@@ -49,7 +65,7 @@ services:
 
   ui:
     # Painel web: le a API do miner e serve o dashboard (ver .build/nerdminer-ui).
-    image: ghcr.io/herigson/nerdminer-ui:1.1.0
+    image: ghcr.io/herigson/nerdminer-ui:1.2.0
     restart: unless-stopped
     depends_on:
       - miner
@@ -64,14 +80,14 @@ services:
       POLL_SECONDS: "10"
       # 720 pontos a cada 10s = 2h de historico no grafico
       HISTORY_POINTS: "720"
-      # A API do cpuminer responde mesmo com a pool fora - ela diz se o MINER
-      # esta vivo, nao se ele esta minerando. O painel sonda a pool por conta
+      # A API do cpuminer responde mesmo com o alvo fora - ela diz se o MINER
+      # esta vivo, nao se ele esta minerando. O painel sonda o alvo por conta
       # propria pra distinguir os dois casos. MANTENHA IGUAL ao -o do miner.
-      POOL_URL: "stratum+tcp://public-pool.io:21496"
+      #
+      # O esquema da URL tambem define o modo do painel: http:// = solo (sem
+      # shares, esconde os quadros de share), stratum+tcp:// = pool.
+      POOL_URL: "http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}"
       POOL_CHECK_SECONDS: "30"
-      # Conectado mas sem share aceita por esse tempo = alerta de falha
-      # silenciosa, que a sondagem TCP sozinha nao pega.
-      SHARE_STALL_SECONDS: "900"
     deploy:
       resources:
         limits:

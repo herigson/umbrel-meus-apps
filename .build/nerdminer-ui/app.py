@@ -70,6 +70,14 @@ POOL_HOST = os.environ.get("POOL_HOST", "").strip() or POOL_HOST
 _env_port = os.environ.get("POOL_PORT", "").strip()
 POOL_PORT = int(_env_port) if _env_port else POOL_PORT
 
+# Modo solo (GBT direto no proprio node) nao tem shares: o cpuminer so submete
+# quando acha um BLOCO, entao ACC fica 0 pra sempre e a deteccao de share
+# estagnada dispararia falso alarme todo dia. O esquema da URL distingue os
+# dois modos, do mesmo jeito que o cpuminer faz internamente:
+#   stratum+tcp://...  -> pool (tem shares)
+#   http://...         -> getblocktemplate no node (nao tem shares)
+SOLO_MODE = POOL_URL.lower().startswith(("http://", "https://"))
+
 _pool = {"url": POOL_URL or None, "host": POOL_HOST, "port": POOL_PORT,
          "reachable": None, "checkedAt": None, "lastOkAt": None,
          "detail": "sonda ainda nao rodou"}
@@ -181,12 +189,16 @@ def build_status():
     if _error:
         return "miner_down", "sem contato com o miner"
     if _pool["reachable"] is False:
-        return "pool_down", "pool fora - nao esta minerando"
-    stalled = (int(time.time()) - _acc_changed_at
-               if _acc_changed_at is not None else None)
-    if stalled is not None and stalled > SHARE_STALL_SECONDS:
-        return "no_shares", "conectado, mas sem share aceita"
-    return "mining", "minerando"
+        return ("pool_down", "node fora - nao esta minerando" if SOLO_MODE
+                else "pool fora - nao esta minerando")
+    # Em solo nao ha shares, entao a deteccao de estagnacao nao se aplica.
+    # SHARE_STALL_SECONDS <= 0 tambem desliga, explicitamente.
+    if not SOLO_MODE and SHARE_STALL_SECONDS > 0:
+        stalled = (int(time.time()) - _acc_changed_at
+                   if _acc_changed_at is not None else None)
+        if stalled is not None and stalled > SHARE_STALL_SECONDS:
+            return "no_shares", "conectado, mas sem share aceita"
+    return "mining", "minerando (solo)" if SOLO_MODE else "minerando"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -213,6 +225,7 @@ class Handler(BaseHTTPRequestHandler):
                     "error": _error,
                     "status": status,
                     "statusLabel": label,
+                    "solo": SOLO_MODE,
                     "pool": dict(_pool),
                     "sharesStalledSeconds": stalled,
                     "shareStallLimit": SHARE_STALL_SECONDS,
@@ -240,8 +253,9 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     threading.Thread(target=poll_forever, daemon=True).start()
     threading.Thread(target=poll_pool_forever, daemon=True).start()
-    print("nerdminer-ui na porta %d, tentando %s:%d a cada %ds; pool %s"
+    print("nerdminer-ui na porta %d, tentando %s:%d a cada %ds; %s %s"
           % (LISTEN_PORT, "/".join(MINER_HOSTS), MINER_PORT, POLL_SECONDS,
+             "node (solo)" if SOLO_MODE else "pool",
              ("%s:%s" % (POOL_HOST, POOL_PORT)) if POOL_HOST
              else "nao configurada"),
           flush=True)

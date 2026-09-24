@@ -187,10 +187,14 @@ let state = {
   pool: {}, sharesStalledSeconds: null
 };
 
-/* Cada estado carrega cor E rotulo - a cor nunca significa sozinha. */
+/* Cada estado carrega cor E rotulo - a cor nunca significa sozinha.
+   "solo" e a variante quando se minera via getblocktemplate no proprio node:
+   nao existe pool, entao o alvo se chama node. */
 const STATES = {
-  mining:     { dot: "ok",   label: "minerando" },
-  pool_down:  { dot: "bad",  label: "pool fora — não está minerando" },
+  mining:     { dot: "ok",   label: "minerando",
+                solo: "minerando (solo)" },
+  pool_down:  { dot: "bad",  label: "pool fora — não está minerando",
+                solo: "node fora — não está minerando" },
   no_shares:  { dot: "warn", label: "sem share aceita" },
   miner_down: { dot: "bad",  label: "sem contato com o miner" }
 };
@@ -374,12 +378,14 @@ function render() {
   // "O miner respondeu" e "estou minerando" sao coisas diferentes: sem pool do
   // outro lado a API do cpuminer segue respondendo normalmente.
   const mining = state.status === "mining";
+  const solo = state.solo === true;
+  const alvo = solo ? "node" : "pool";
   const meta = STATES[state.status] || STATES.miner_down;
 
   // Status: cor + rotulo (a cor nunca carrega o significado sozinha)
   const dot = $("status").querySelector(".dot");
   dot.className = "dot " + meta.dot;
-  $("statusText").textContent = meta.label;
+  $("statusText").textContent = (solo && meta.solo) ? meta.solo : meta.label;
 
   const banner = $("banner");
   banner.classList.remove("warn");
@@ -388,12 +394,12 @@ function render() {
       (state.error || "");
     banner.classList.remove("hidden");
   } else if (state.status === "pool_down") {
-    banner.innerHTML = "<strong>A pool está fora.</strong> O miner está de pé e " +
-      "tentando reconectar, mas não há trabalho para processar — nenhum share " +
-      "está sendo enviado. Não é preciso fazer nada: ele volta sozinho." +
+    banner.innerHTML = "<strong>" + (solo ? "O node está fora." : "A pool está fora.") +
+      "</strong> O miner está de pé e tentando reconectar, mas não há trabalho " +
+      "para processar. Não é preciso fazer nada: ele volta sozinho." +
       (pool.host ? " Sondagem de " + pool.host + ":" + pool.port +
                    " → " + (pool.detail || "sem resposta") + "." : "") +
-      (pool.lastOkAt ? " Última resposta da pool às " + clock(pool.lastOkAt) + "." : "");
+      (pool.lastOkAt ? " Última resposta às " + clock(pool.lastOkAt) + "." : "");
     banner.classList.remove("hidden");
   } else if (state.status === "no_shares") {
     banner.classList.add("warn");
@@ -418,23 +424,29 @@ function render() {
   const acc = Number(c.ACC || 0), rej = Number(c.REJ || 0);
   const total = acc + rej;
   const rate = Number(c.ACCMN || 0);
+  // Em solo nao existem shares (o miner so submete blocos), entao os quadros
+  // de share dao lugar ao que de fato descreve o modo.
+  const shareTiles = solo
+    ? tile("Modo", "Solo", "getblocktemplate no próprio node")
+    : tile("Aceitos", acc.toLocaleString("pt-BR"),
+           total ? ((acc / total) * 100).toFixed(1) + "% do total" : "") +
+      tile("Rejeitados", rej.toLocaleString("pt-BR"),
+           total ? ((rej / total) * 100).toFixed(1) + "% do total" : "") +
+      tile("Share a cada", rate > 0 ? (1 / rate).toFixed(1) + " min" : "—",
+           rate > 0 ? rate.toFixed(2) + "/min" : "");
+
   $("tiles").innerHTML =
-    tile("Aceitos", acc.toLocaleString("pt-BR"),
-         total ? ((acc / total) * 100).toFixed(1) + "% do total" : "") +
-    tile("Rejeitados", rej.toLocaleString("pt-BR"),
-         total ? ((rej / total) * 100).toFixed(1) + "% do total" : "") +
-    tile("Share a cada", rate > 0 ? (1 / rate).toFixed(1) + " min" : "—",
-         rate > 0 ? rate.toFixed(2) + "/min" : "") +
+    shareTiles +
     tile("Temperatura", c.TEMP ? Math.round(c.TEMP) + " °C" : "—") +
     // FREQ vem em kHz (o cpuminer le scaling_cur_freq do sysfs, que e kHz)
     tile("Frequência", c.FREQ ? (Number(c.FREQ) / 1e6).toFixed(2) + " GHz" : "—",
          c.CPUS ? c.CPUS + " thread(s)" : "") +
     tile("Ligado há", c.UPTIME ? duration(c.UPTIME) : "—",
          "tempo de container, não de mineração") +
-    tile("Pool",
+    tile(solo ? "Node" : "Pool",
          pool.reachable === true ? "no ar"
            : pool.reachable === false ? "fora" : "—",
-         pool.host ? pool.host + ":" + pool.port : "não configurada");
+         pool.host ? pool.host + ":" + pool.port : "não configurado");
 
   $("sol").textContent = c.SOL !== undefined ? c.SOL : "—";
   $("ttf").textContent = minerLive
@@ -444,7 +456,7 @@ function render() {
   $("footer").innerHTML = minerLive
     ? ["<span>" + (c.NAME || "cpuminer") + " " + (c.VER || "") + "</span>",
        "<span>algoritmo: " + (c.ALGO || "—") + "</span>",
-       "<span>pool: " + (pool.url || c.URL || "—") + "</span>"].join("")
+       "<span>" + alvo + ": " + (pool.url || c.URL || "—") + "</span>"].join("")
     : "";
 
   const rows = state.history.slice(-60).reverse().map((p) => {
