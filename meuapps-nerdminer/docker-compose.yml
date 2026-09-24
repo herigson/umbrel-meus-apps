@@ -49,7 +49,7 @@ services:
 
   ui:
     # Painel web: le a API do miner e serve o dashboard (ver .build/nerdminer-ui).
-    image: ghcr.io/herigson/nerdminer-ui:1.0.2
+    image: ghcr.io/herigson/nerdminer-ui:1.1.0
     restart: unless-stopped
     depends_on:
       - miner
@@ -64,6 +64,14 @@ services:
       POLL_SECONDS: "10"
       # 720 pontos a cada 10s = 2h de historico no grafico
       HISTORY_POINTS: "720"
+      # A API do cpuminer responde mesmo com a pool fora - ela diz se o MINER
+      # esta vivo, nao se ele esta minerando. O painel sonda a pool por conta
+      # propria pra distinguir os dois casos. MANTENHA IGUAL ao -o do miner.
+      POOL_URL: "stratum+tcp://public-pool.io:21496"
+      POOL_CHECK_SECONDS: "30"
+      # Conectado mas sem share aceita por esse tempo = alerta de falha
+      # silenciosa, que a sondagem TCP sozinha nao pega.
+      SHARE_STALL_SECONDS: "900"
     deploy:
       resources:
         limits:

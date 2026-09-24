@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "26.1.4"
+version: "26.1.5"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) apontado para o pool solo
@@ -26,10 +26,31 @@ description: >-
 
   O botao Open abre um painel proprio com hashrate ao vivo e historico de 2h,
   shares aceitos e rejeitados, temperatura, frequencia, uptime e o contador de
-  blocos encontrados. Para as estatisticas do lado do pool, veja seu worker em
-  https://web.public-pool.io informando seu endereco BTC.
+  blocos encontrados. O painel sonda a pool por conta propria e avisa quando
+  ela cai - a API do cpuminer responde mesmo sem pool nenhuma, entao "o miner
+  esta vivo" nao e a mesma coisa que "estou minerando". Para as estatisticas
+  do lado do pool, veja seu worker em https://web.public-pool.io informando
+  seu endereco BTC.
 releaseNotes: >-
-  Ajustes no painel: a frequencia aparecia como "1123.68 GHz" (o cpuminer
+  O painel agora distingue "o miner esta vivo" de "estou minerando". Ate aqui
+  ele so perguntava se a API do cpuminer respondia - e ela responde mesmo com
+  a pool fora, entao numa queda do public-pool.io o painel seguia dizendo
+  "minerando", com o ultimo hashrate congelado e o grafico numa linha reta.
+
+
+  Tres mudancas: o painel passa a sondar a pool por TCP (POOL_URL no compose,
+  a cada 30s); detecta share aceita estagnada (ACC parado por mais de 15 min,
+  que pega falha silenciosa da pool mesmo com a porta aberta); e grava zero no
+  historico durante a queda, porque producao parada e zero - a linha reta era
+  justamente a informacao errada. O estado aparece com cor E rotulo ("pool
+  fora - nao esta minerando"), mais um quadro novo com o estado da pool.
+
+
+  Nada a fazer quando isso acontece: o cpuminer reconecta sozinho, e em
+  loteria solo share nao acumula valor.
+
+
+  A 26.1.4 trouxe ajustes no painel: a frequencia aparecia como "1123.68 GHz" (o cpuminer
   informa FREQ em kHz, nao em MHz) e o rotulo do topo do eixo Y estourava a
   margem - agora a unidade aparece uma vez como legenda e os ticks ficam
   numeros puros. /api/stats passa a incluir a resposta crua da API do miner,

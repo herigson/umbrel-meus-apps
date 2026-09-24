@@ -126,6 +126,9 @@
     border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px;
     color: var(--ink-2); font-size: .86rem;
   }
+  .banner.warn { border-color: var(--warning); }
+  .banner strong { color: var(--ink); }
+  .note { font-size: .8rem; color: var(--muted); margin-top: 6px; }
   .hidden { display: none; }
 </style>
 </head>
@@ -146,6 +149,7 @@
       <span class="value" id="hs">—</span>
       <span class="unit" id="hsUnit"></span>
     </div>
+    <div class="note" id="hsNote"></div>
     <figure>
       <svg id="chart" role="img" aria-label="Hashrate ao longo do tempo"></svg>
       <div class="tip" id="tip"></div>
@@ -177,7 +181,19 @@
 
 const $ = (id) => document.getElementById(id);
 const CHART = { pad: { top: 16, right: 8, bottom: 22, left: 44 } };
-let state = { history: [], current: {}, error: null };
+let state = {
+  history: [], current: {}, error: null,
+  status: "miner_down", statusLabel: "conectando…",
+  pool: {}, sharesStalledSeconds: null
+};
+
+/* Cada estado carrega cor E rotulo - a cor nunca significa sozinha. */
+const STATES = {
+  mining:     { dot: "ok",   label: "minerando" },
+  pool_down:  { dot: "bad",  label: "pool fora — não está minerando" },
+  no_shares:  { dot: "warn", label: "sem share aceita" },
+  miner_down: { dot: "bad",  label: "sem contato com o miner" }
+};
 
 /* ---------- formatadores ---------- */
 
@@ -353,24 +369,51 @@ function tile(k, v, n) {
 
 function render() {
   const c = state.current || {};
-  const live = !state.error && Object.keys(c).length > 0;
+  const pool = state.pool || {};
+  const minerLive = !state.error && Object.keys(c).length > 0;
+  // "O miner respondeu" e "estou minerando" sao coisas diferentes: sem pool do
+  // outro lado a API do cpuminer segue respondendo normalmente.
+  const mining = state.status === "mining";
+  const meta = STATES[state.status] || STATES.miner_down;
 
   // Status: cor + rotulo (a cor nunca carrega o significado sozinha)
   const dot = $("status").querySelector(".dot");
-  dot.className = "dot " + (live ? "ok" : "bad");
-  $("statusText").textContent = live ? "minerando" : "sem contato com o miner";
+  dot.className = "dot " + meta.dot;
+  $("statusText").textContent = meta.label;
 
   const banner = $("banner");
-  if (state.error) {
-    banner.textContent = "Não foi possível ler a API do cpuminer — " + state.error;
+  banner.classList.remove("warn");
+  if (state.status === "miner_down") {
+    banner.innerHTML = "<strong>Sem contato com o miner.</strong> " +
+      (state.error || "");
+    banner.classList.remove("hidden");
+  } else if (state.status === "pool_down") {
+    banner.innerHTML = "<strong>A pool está fora.</strong> O miner está de pé e " +
+      "tentando reconectar, mas não há trabalho para processar — nenhum share " +
+      "está sendo enviado. Não é preciso fazer nada: ele volta sozinho." +
+      (pool.host ? " Sondagem de " + pool.host + ":" + pool.port +
+                   " → " + (pool.detail || "sem resposta") + "." : "") +
+      (pool.lastOkAt ? " Última resposta da pool às " + clock(pool.lastOkAt) + "." : "");
+    banner.classList.remove("hidden");
+  } else if (state.status === "no_shares") {
+    banner.classList.add("warn");
+    banner.innerHTML = "<strong>Conectado, mas sem share aceita há " +
+      duration(state.sharesStalledSeconds) + ".</strong> A pool aceita conexão, " +
+      "porém nada está sendo contabilizado. Pode ser falha silenciosa do lado dela.";
     banner.classList.remove("hidden");
   } else {
     banner.classList.add("hidden");
   }
 
-  const [hsVal, hsUnit] = hashrate(c.HS);
-  $("hs").textContent = live ? hsVal : "—";
-  $("hsUnit").textContent = live ? hsUnit : "";
+  // Durante a queda o cpuminer congela o ultimo hashrate na API. Mostrar esse
+  // numero como se fosse producao atual e a mentira que o painel contava antes.
+  const [hsVal, hsUnit] = hashrate(mining ? c.HS : 0);
+  $("hs").textContent = minerLive ? (mining ? hsVal : "0") : "—";
+  $("hsUnit").textContent = minerLive ? hsUnit : "";
+  const [lastVal, lastUnit] = hashrate(c.HS);
+  $("hsNote").textContent = (minerLive && !mining)
+    ? "produção parada. Última leitura do miner: " + lastVal + " " + lastUnit
+    : "";
 
   const acc = Number(c.ACC || 0), rej = Number(c.REJ || 0);
   const total = acc + rej;
@@ -386,17 +429,22 @@ function render() {
     // FREQ vem em kHz (o cpuminer le scaling_cur_freq do sysfs, que e kHz)
     tile("Frequência", c.FREQ ? (Number(c.FREQ) / 1e6).toFixed(2) + " GHz" : "—",
          c.CPUS ? c.CPUS + " thread(s)" : "") +
-    tile("Ligado há", c.UPTIME ? duration(c.UPTIME) : "—");
+    tile("Ligado há", c.UPTIME ? duration(c.UPTIME) : "—",
+         "tempo de container, não de mineração") +
+    tile("Pool",
+         pool.reachable === true ? "no ar"
+           : pool.reachable === false ? "fora" : "—",
+         pool.host ? pool.host + ":" + pool.port : "não configurada");
 
   $("sol").textContent = c.SOL !== undefined ? c.SOL : "—";
-  $("ttf").textContent = live
+  $("ttf").textContent = minerLive
     ? "tempo médio estimado neste hashrate: " + timeToBlock(c.DIFF, c.HS)
     : "";
 
-  $("footer").innerHTML = live
+  $("footer").innerHTML = minerLive
     ? ["<span>" + (c.NAME || "cpuminer") + " " + (c.VER || "") + "</span>",
        "<span>algoritmo: " + (c.ALGO || "—") + "</span>",
-       "<span>pool: " + (c.URL || "—") + "</span>"].join("")
+       "<span>pool: " + (pool.url || c.URL || "—") + "</span>"].join("")
     : "";
 
   const rows = state.history.slice(-60).reverse().map((p) => {
@@ -415,6 +463,7 @@ async function tick() {
     state = await res.json();
   } catch (err) {
     state.error = "painel não conseguiu falar com o próprio backend";
+    state.status = "miner_down";
   }
   render();
 }

@@ -2,7 +2,8 @@
 """Painel web do NerdMiner.
 
 Le a API do cpuminer (TCP, comando "summary" -> string chave=valor terminada
-em "|"), guarda um historico em memoria e serve um dashboard HTML.
+em "|"), sonda a pool por conta propria, guarda um historico em memoria e
+serve um dashboard HTML.
 
 So biblioteca padrao - sem dependencias pra instalar.
 """
@@ -28,14 +29,50 @@ POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
 # 720 pontos a cada 10s = 2 horas de historico
 HISTORY_POINTS = int(os.environ.get("HISTORY_POINTS", "720"))
 
+# A API do cpuminer responde mesmo sem pool nenhuma do outro lado: ela diz se
+# o MINER esta vivo, nao se ele esta minerando. Por isso o painel sonda a pool
+# por conta propria - e a unica fonte de verdade sobre "tem alguem pra receber
+# meus shares".
+POOL_URL = os.environ.get("POOL_URL", "").strip()
+POOL_CHECK_SECONDS = int(os.environ.get("POOL_CHECK_SECONDS", "30"))
+# Conectado mas sem share aceita por muito tempo = falha silenciosa da pool,
+# que a sondagem de TCP sozinha nao pega.
+SHARE_STALL_SECONDS = int(os.environ.get("SHARE_STALL_SECONDS", "900"))
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 _lock = threading.Lock()
 _current = {}
 _error = "aguardando a primeira leitura"
 _history = deque(maxlen=HISTORY_POINTS)
-_host_ok = None  # nome que respondeu da ultima vez
-_raw = None      # ultima resposta crua, exposta em /api/stats pra diagnostico
+_host_ok = None   # nome que respondeu da ultima vez
+_raw = None       # ultima resposta crua, exposta em /api/stats pra diagnostico
+_acc_last = None       # ultimo valor de ACC visto
+_acc_changed_at = None  # quando ACC mudou pela ultima vez
+
+
+def parse_pool_url(url):
+    """stratum+tcp://public-pool.io:21496 -> (public-pool.io, 21496)"""
+    if not url:
+        return None, None
+    rest = url.split("://", 1)[-1].split("/", 1)[0]
+    if ":" not in rest:
+        return rest or None, None
+    host, _, port = rest.rpartition(":")
+    try:
+        return host or None, int(port)
+    except ValueError:
+        return rest or None, None
+
+
+POOL_HOST, POOL_PORT = parse_pool_url(POOL_URL)
+POOL_HOST = os.environ.get("POOL_HOST", "").strip() or POOL_HOST
+_env_port = os.environ.get("POOL_PORT", "").strip()
+POOL_PORT = int(_env_port) if _env_port else POOL_PORT
+
+_pool = {"url": POOL_URL or None, "host": POOL_HOST, "port": POOL_PORT,
+         "reachable": None, "checkedAt": None, "lastOkAt": None,
+         "detail": "sonda ainda nao rodou"}
 
 
 def _talk(host, command):
@@ -70,7 +107,7 @@ def ask(command="summary"):
 
 
 def parse(raw):
-    """'NAME=cpuminer-opt;VER=26.1;...|' -> dict"""
+    """NAME=cpuminer-opt;VER=26.1;... -> dict"""
     fields = {}
     for pair in raw.split("|")[0].split(";"):
         if "=" in pair:
@@ -79,23 +116,77 @@ def parse(raw):
     return fields
 
 
+def probe_pool():
+    """Abre um TCP na pool. Nao fala stratum - so responde se tem alguem la."""
+    if not POOL_HOST or not POOL_PORT:
+        return None, "pool nao configurada (defina POOL_URL)"
+    try:
+        with socket.create_connection((POOL_HOST, POOL_PORT), timeout=8):
+            return True, "conexao aceita"
+    except OSError as exc:
+        return False, str(exc)
+
+
+def poll_pool_forever():
+    while True:
+        reachable, detail = probe_pool()
+        now = int(time.time())
+        with _lock:
+            _pool["reachable"] = reachable
+            _pool["detail"] = detail
+            _pool["checkedAt"] = now
+            if reachable:
+                _pool["lastOkAt"] = now
+        time.sleep(POOL_CHECK_SECONDS)
+
+
 def poll_forever():
-    global _current, _error, _raw
+    global _current, _error, _raw, _acc_last, _acc_changed_at
     while True:
         try:
             answer = ask()
             fields = parse(answer)
             if not fields:
                 raise ValueError("resposta vazia da API do miner")
+            now = int(time.time())
             with _lock:
                 _current = fields
                 _raw = answer.strip()
                 _error = None
-                _history.append([int(time.time()), float(fields.get("HS", 0) or 0)])
+
+                acc = fields.get("ACC")
+                if acc != _acc_last:
+                    _acc_last = acc
+                    _acc_changed_at = now
+                elif _acc_changed_at is None:
+                    _acc_changed_at = now
+
+                # Sem pool nao ha trabalho, entao nao ha producao. O cpuminer
+                # mantem o ultimo hashrate calculado na API, e gravar esse
+                # numero desenharia uma linha reta durante a queda - exatamente
+                # a informacao errada. Zero e o valor honesto.
+                rate = float(fields.get("HS", 0) or 0)
+                if _pool["reachable"] is False:
+                    rate = 0.0
+                _history.append([now, rate])
         except Exception as exc:  # miner reiniciando, API fora, etc.
             with _lock:
                 _error = "%s: %s" % (type(exc).__name__, exc)
+                _history.append([int(time.time()), 0.0])
         time.sleep(POLL_SECONDS)
+
+
+def build_status():
+    """Deriva o estado real. Chamar com _lock ja adquirido."""
+    if _error:
+        return "miner_down", "sem contato com o miner"
+    if _pool["reachable"] is False:
+        return "pool_down", "pool fora - nao esta minerando"
+    stalled = (int(time.time()) - _acc_changed_at
+               if _acc_changed_at is not None else None)
+    if stalled is not None and stalled > SHARE_STALL_SECONDS:
+        return "no_shares", "conectado, mas sem share aceita"
+    return "mining", "minerando"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -113,10 +204,18 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/api/stats":
             with _lock:
+                status, label = build_status()
+                stalled = (int(time.time()) - _acc_changed_at
+                           if _acc_changed_at is not None else None)
                 payload = {
                     "current": dict(_current),
                     "history": list(_history),
                     "error": _error,
+                    "status": status,
+                    "statusLabel": label,
+                    "pool": dict(_pool),
+                    "sharesStalledSeconds": stalled,
+                    "shareStallLimit": SHARE_STALL_SECONDS,
                     "pollSeconds": POLL_SECONDS,
                     "serverTime": int(time.time()),
                     "minerHost": _host_ok,
@@ -140,11 +239,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     threading.Thread(target=poll_forever, daemon=True).start()
-    server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Handler)
-    print("nerdminer-ui na porta %d, tentando %s:%d a cada %ds"
-          % (LISTEN_PORT, "/".join(MINER_HOSTS), MINER_PORT, POLL_SECONDS),
+    threading.Thread(target=poll_pool_forever, daemon=True).start()
+    print("nerdminer-ui na porta %d, tentando %s:%d a cada %ds; pool %s"
+          % (LISTEN_PORT, "/".join(MINER_HOSTS), MINER_PORT, POLL_SECONDS,
+             ("%s:%s" % (POOL_HOST, POOL_PORT)) if POOL_HOST
+             else "nao configurada"),
           flush=True)
-    server.serve_forever()
+    ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":
