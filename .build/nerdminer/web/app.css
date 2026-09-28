@@ -98,7 +98,7 @@ nav { display: flex; flex-direction: column; gap: 4px; }
 .main {
   flex: 1; min-width: 0;
   padding: 28px 36px calc(36px + env(safe-area-inset-bottom, 0px));
-  display: flex; flex-direction: column; gap: 24px;
+  display: flex; flex-direction: column; gap: 28px;
 }
 
 /* ---------- cabecalho ---------- */
@@ -135,10 +135,10 @@ nav { display: flex; flex-direction: column; gap: 4px; }
 
 .card {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); padding: 20px;
+  border-radius: var(--radius-lg); padding: 22px;
 }
 
-.kpis { display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr); }
+.kpis { display: grid; gap: 20px; grid-template-columns: repeat(4, 1fr); }
 .kpi { display: flex; flex-direction: column; gap: 10px; }
 .kpi .k { font-size: 12px; color: var(--muted); text-transform: uppercase;
           letter-spacing: 0.05em; }
@@ -149,8 +149,8 @@ nav { display: flex; flex-direction: column; gap: 4px; }
 .kpi .n.good { color: var(--ok); }
 .kpi .n.bad { color: var(--danger-text); }
 
-.lower { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; align-items: start; }
-.side-col { display: flex; flex-direction: column; gap: 16px; }
+.lower { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
+.side-col { display: flex; flex-direction: column; gap: 20px; }
 
 .card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
 .card-head h2 { margin: 0; }

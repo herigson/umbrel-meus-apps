@@ -29,20 +29,11 @@ let offline = false;
 
 const nf = new Intl.NumberFormat("pt-BR");
 
-/* Vai até ZH/s: o hashrate da rede toda passa de 1e21 H/s, e parar em TH/s
-   imprimia "1003969285.48 TH/s" no card da Rede Bitcoin. */
-const HASH_UNITS = [
-  [1e21, "ZH/s"], [1e18, "EH/s"], [1e15, "PH/s"], [1e12, "TH/s"],
-  [1e9, "GH/s"], [1e6, "MH/s"], [1e3, "kH/s"],
-];
-
-function fmtHash(hs) {
-  const n = Number(hs) || 0;
-  for (const [factor, unit] of HASH_UNITS) {
-    if (n >= factor) return [(n / factor).toFixed(2), unit];
-  }
-  return [n.toFixed(0), "H/s"];
-}
+/* Reaproveita o formatador do chart.js, que é carregado antes. Ter uma
+   segunda cópia aqui já custou caro: as duas declaravam `const HASH_UNITS`
+   no mesmo escopo global, e a redeclaração derrubava este arquivo inteiro
+   com SyntaxError — a página carregava e nada buscava dados. */
+const fmtHash = fmtHashrate;
 
 function fmtBig(n) {
   const v = Number(n);

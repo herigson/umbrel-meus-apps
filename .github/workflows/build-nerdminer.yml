@@ -70,6 +70,36 @@ jobs:
             node --check "$f"
           done
 
+      # O "node --check" valida cada arquivo ISOLADAMENTE e nao ve colisao
+      # entre eles. Os scripts sao classicos e dividem o escopo global: dois
+      # "const X" com o mesmo nome dao SyntaxError e derrubam o segundo
+      # arquivo inteiro. Ja aconteceu (HASH_UNITS em chart.js e app.js) - a
+      # pagina carregava e nada buscava dados.
+      - name: Checar colisao de simbolos globais entre os scripts
+        run: |
+          cd .build/nerdminer/web
+          dup=$(cat *.js | grep -oE '^(const|let|var|function) +[A-Za-z_$]+' \
+                | awk '{print $2}' | sort | uniq -d)
+          if [ -n "$dup" ]; then
+            echo "SIMBOLOS DECLARADOS EM MAIS DE UM ARQUIVO:"
+            echo "$dup"
+            exit 1
+          fi
+          echo "sem colisoes"
+
+      # Todos os ids usados pelo JS precisam existir no HTML, senao vira
+      # "cannot read properties of null" em runtime.
+      - name: Checar ids referenciados pelo JS
+        run: |
+          cd .build/nerdminer/web
+          missing=0
+          for id in $(grep -oE '\$\("[A-Za-z0-9_-]+"\)' app.js \
+                      | sed -E 's/.*"(.*)".*/\1/' | sort -u); do
+            grep -q "id=\"$id\"" index.html || { echo "id ausente no HTML: $id"; missing=1; }
+          done
+          [ "$missing" = "0" ] && echo "todos os ids existem"
+          exit $missing
+
       - name: Checar HTML e CSS minimamente
         run: |
           python3 - <<'PY'
