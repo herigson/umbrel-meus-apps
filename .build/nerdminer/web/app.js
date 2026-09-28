@@ -160,7 +160,13 @@ function renderStats() {
     note.textContent = "produção parada · última leitura " + lv + " " + lu;
     note.className = "n bad";
   } else {
-    note.textContent = cur.CPUS ? cur.CPUS + " thread(s)" : " ";
+    // Com o limite ativo o hashrate cai de proposito - dizer isso aqui evita que pareca defeito.
+    const partes = [];
+    if (cur.CPUS) partes.push(cur.CPUS + " thread(s)");
+    if (config && Number(config.cpu_percent) < 100) {
+      partes.push("limitado a " + config.cpu_percent + "% de CPU");
+    }
+    note.textContent = partes.join(" · ") || " ";
     note.className = "n";
   }
 
@@ -283,6 +289,8 @@ function fillForm(cfg) {
   $("fThreads").value = cfg.threads;
   $("fThreads").max = cfg.max_threads;
   $("fScan").value = cfg.scantime;
+  $("fCpu").value = cfg.cpu_percent;
+  if (cfg.cpu_range) { $("fCpu").min = cfg.cpu_range[0]; $("fCpu").max = cfg.cpu_range[1]; }
   $("fMaxTemp").value = cfg.max_temp;
   if (cfg.temp_range) {
     $("fMaxTemp").min = 0;
@@ -308,6 +316,7 @@ function snapshotForm() {
     btc_address: $("fAddr").value.trim(),
     threads: $("fThreads").value,
     scantime: $("fScan").value,
+    cpu_percent: $("fCpu").value,
     max_temp: $("fMaxTemp").value,
     pool_url: $("fPoolUrl").value.trim(),
     pool_password: $("fPoolPw").value,
@@ -370,6 +379,12 @@ function validateForm() {
     return null;
   }
 
+  const cpuPct = parseInt($("fCpu").value, 10);
+  if (!(cpuPct >= 10 && cpuPct <= 100)) {
+    showError("errNum", "Uso de CPU deve estar entre 10% e 100%.");
+    return null;
+  }
+
   const maxTemp = parseInt($("fMaxTemp").value, 10);
   if (!isFinite(maxTemp) || maxTemp < 0) {
     showError("errNum", "Temperatura máxima inválida. Use 0 para desligar.");
@@ -388,7 +403,7 @@ function validateForm() {
   }
 
   const body = { mode, btc_address: addr, threads, scantime: scan,
-                 max_temp: maxTemp };
+                 max_temp: maxTemp, cpu_percent: cpuPct };
   if (mode === "pool") body.pool_url = poolUrl;
   const pw = $("fPoolPw").value;
   if (pw) body.pool_password = pw;   // vazio = mantém a atual

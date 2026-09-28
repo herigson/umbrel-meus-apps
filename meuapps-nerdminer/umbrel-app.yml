@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Mineracao solo de Bitcoin contra o seu proprio node, configuravel pela UI
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "27.2.0"
+version: "27.3.0"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu

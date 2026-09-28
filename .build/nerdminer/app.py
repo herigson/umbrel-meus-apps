@@ -326,7 +326,7 @@ def main():
     signal.signal(signal.SIGINT, handle_signal)
 
     miner.apply_config()
-    for target in (miner.supervise, poll_miner, poll_target):
+    for target in (miner.supervise, miner.throttle_forever, poll_miner, poll_target):
         threading.Thread(target=target, daemon=True).start()
     threading.Thread(target=nodeinfo.poll_forever, args=(_stop,),
                      daemon=True).start()

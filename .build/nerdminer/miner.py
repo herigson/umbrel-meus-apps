@@ -16,6 +16,7 @@ Cuidados de memoria (o vazamento de 1 GiB/h do proprio cpuminer ensinou):
 """
 
 import os
+import signal
 import socket
 import subprocess
 import threading
@@ -35,12 +36,15 @@ NODE_RPC_PASS = os.environ.get("APP_BITCOIN_RPC_PASS", "")
 CPUMINER = os.environ.get("CPUMINER_BIN", "/usr/local/bin/cpuminer")
 LOG_LINES = 200
 RESTART_DELAY = 5
+# Periodo do ciclo de trabalho do throttle de CPU (ver throttle_forever).
+THROTTLE_PERIOD = 0.25
 
 _lock = threading.RLock()
 _proc = None
 _log = deque(maxlen=LOG_LINES)
 _state = {"running": False, "reason": "ainda nao iniciado", "started_at": None,
           "restarts": 0, "exit_code": None}
+_cpu_percent = 100
 _stop = threading.Event()
 _wanted = threading.Event()   # setado = deve estar rodando
 
@@ -135,6 +139,14 @@ def _kill(timeout=10):
     if proc is None:
         return
     try:
+        # ARMADILHA: um processo parado por SIGSTOP NAO responde a SIGTERM -
+        # ele so processa o sinal quando voltar a rodar. Se o throttle o
+        # tiver pausado neste instante, terminate() nao mata nada e o
+        # wait() estoura o timeout. SIGCONT primeiro, sempre.
+        proc.send_signal(signal.SIGCONT)
+    except OSError:
+        pass
+    try:
         proc.terminate()
         try:
             proc.wait(timeout=timeout)
@@ -148,9 +160,11 @@ def _kill(timeout=10):
 
 def apply_config():
     """Reinicia o miner com a config atual. Idempotente."""
+    global _cpu_percent
     with _lock:
         _kill()
         cfg = appconfig.load()
+        _cpu_percent = int(cfg.get("cpu_percent", 100))
         if cfg["paused"] or not cfg["btc_address"]:
             _wanted.clear()
             args, reason = build_args(cfg)
@@ -158,6 +172,49 @@ def apply_config():
             return
         _wanted.set()
         _spawn(cfg)
+
+
+def throttle_forever():
+    """Limita o uso de CPU por ciclo de trabalho: SIGCONT -> espera ->
+    SIGSTOP -> espera, num periodo curto.
+
+    Existe porque o teto de CPU do container e cgroup, e um container nao
+    altera o proprio cgroup - entao nao ha como expor isso na UI de outro
+    jeito. E o mesmo principio da ferramenta "cpulimit".
+
+    So RESTRINGE dentro do teto do compose: se la diz 0.5 de nucleo, 100%
+    aqui continua sendo 0.5. Para passar disso, o compose e que muda.
+
+    O periodo e curto (250ms) pra nao criar engasgo visivel, e longo o
+    bastante pra nao virar tempestade de sinais. Durante a pausa a API do
+    cpuminer tambem para de responder, mas a conexao fica na fila do kernel
+    e e aceita ao retomar - o timeout do painel e de 5s, folgado.
+    """
+    while not _stop.is_set():
+        with _lock:
+            proc = _proc
+            pct = _cpu_percent
+        if proc is None or pct >= 100 or proc.poll() is not None:
+            _stop.wait(1)
+            continue
+        on = THROTTLE_PERIOD * (pct / 100.0)
+        off = THROTTLE_PERIOD - on
+        try:
+            proc.send_signal(signal.SIGCONT)
+            time.sleep(on)
+            proc.send_signal(signal.SIGSTOP)
+            time.sleep(off)
+        except (OSError, ValueError):
+            # processo morreu no meio do ciclo; o supervisor cuida
+            _stop.wait(1)
+    # Ao sair, nunca deixar o processo parado.
+    with _lock:
+        proc = _proc
+    if proc is not None:
+        try:
+            proc.send_signal(signal.SIGCONT)
+        except OSError:
+            pass
 
 
 def supervise():

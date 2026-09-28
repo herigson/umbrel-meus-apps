@@ -28,6 +28,8 @@ MAX_THREADS = max(1, os.cpu_count() or 1)
 # protege nada. 0 desliga o governador.
 MIN_TEMP = 45
 MAX_TEMP = 95
+# Abaixo de 10% o minerador fica mais parado do que rodando.
+MIN_CPU = 10
 
 DEFAULTS = {
     "mode": "solo",              # "solo" (getblocktemplate) ou "pool" (stratum)
@@ -38,6 +40,10 @@ DEFAULTS = {
     # as threads pausam ate esfriar. 0 = desligado. E o jeito de controlar
     # temperatura pela UI - o teto de CPU do compose um container nao muda.
     "max_temp": 0,
+    # Percentual do tempo em que o miner roda (ciclo de trabalho por
+    # SIGSTOP/SIGCONT). So restringe DENTRO do teto de CPU do compose:
+    # 100 = o teto inteiro. Ver throttle_forever em miner.py.
+    "cpu_percent": 100,
     "pool_url": "stratum+tcp://public-pool.io:21496",
     "pool_password": "x",
     "paused": False,
@@ -109,6 +115,14 @@ def _validate(cfg):
         raise ConfigError("Temperatura maxima deve ser 0 (desligado) ou entre "
                           "%d e %d C." % (MIN_TEMP, MAX_TEMP))
     out["max_temp"] = max_temp
+
+    try:
+        cpu_pct = int(cfg.get("cpu_percent", out["cpu_percent"]))
+    except (TypeError, ValueError):
+        raise ConfigError("Uso de CPU invalido.")
+    if not MIN_CPU <= cpu_pct <= 100:
+        raise ConfigError("Uso de CPU deve estar entre %d%% e 100%%." % MIN_CPU)
+    out["cpu_percent"] = cpu_pct
 
     pool_url = (cfg.get("pool_url") or "").strip()
     if mode == "pool":
@@ -203,4 +217,5 @@ def public(cfg=None):
     cfg["pool_password_set"] = True
     cfg["max_threads"] = MAX_THREADS
     cfg["temp_range"] = [MIN_TEMP, MAX_TEMP]
+    cfg["cpu_range"] = [MIN_CPU, 100]
     return cfg
