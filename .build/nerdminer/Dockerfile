@@ -83,7 +83,10 @@ ENV PYTHONUNBUFFERED=1 \
     CONFIG_DIR=/data \
     LISTEN_PORT=8080
 
-USER nerdminer
+# Sem USER aqui de proposito: o processo sobe como root, corrige o dono de
+# /data (que o Docker cria como root ao montar o volume do Umbrel) e abaixa
+# para uid 1000 em drop_privileges(), no app.py - antes de qualquer socket,
+# thread ou processo filho. O cpuminer tambem nasce ja sem privilegio.
 WORKDIR /app
 EXPOSE 8080
 

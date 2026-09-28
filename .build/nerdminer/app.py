@@ -273,7 +273,46 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def drop_privileges():
+    """Ajusta o dono de /data e abaixa privilegios.
+
+    O Umbrel monta ${APP_DATA_DIR}/data em /data. Quando esse diretorio ainda
+    nao existe no host, quem o cria e o Docker - como root:root. O chown feito
+    no Dockerfile nao ajuda: o bind-mount cobre o diretorio da imagem, e a
+    dona que vale e a do host. Sem isto, gravar o config.json da
+    "Permission denied".
+
+    Entao subimos como root so pra corrigir o dono e caimos pra uid 1000
+    imediatamente - antes de abrir socket, thread ou processo filho, pra que
+    nada (nem o cpuminer) rode com privilegio.
+    """
+    if os.geteuid() != 0:
+        return
+    uid = int(os.environ.get("APP_UID", "1000"))
+    gid = int(os.environ.get("APP_GID", "1000"))
+    try:
+        os.makedirs(appconfig.CONFIG_DIR, exist_ok=True)
+        os.chown(appconfig.CONFIG_DIR, uid, gid)
+        for name in os.listdir(appconfig.CONFIG_DIR):
+            try:
+                os.chown(os.path.join(appconfig.CONFIG_DIR, name), uid, gid)
+            except OSError:
+                pass
+    except OSError as exc:
+        print("aviso: nao consegui ajustar o dono de %s (%s)"
+              % (appconfig.CONFIG_DIR, exc), flush=True)
+    try:
+        os.setgroups([])
+        os.setgid(gid)
+        os.setuid(uid)
+        print("privilegios reduzidos para uid=%d gid=%d" % (uid, gid), flush=True)
+    except OSError as exc:
+        print("aviso: segui como root, nao consegui abaixar privilegios (%s)"
+              % exc, flush=True)
+
+
 def main():
+    drop_privileges()
     load_assets()
     appconfig.load()
 

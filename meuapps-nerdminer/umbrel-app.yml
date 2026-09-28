@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Mineracao solo de Bitcoin contra o seu proprio node, configuravel pela UI
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "27.0.0"
+version: "27.0.1"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
@@ -34,6 +34,16 @@ description: >-
   no docker-compose.yml, porque um container nao consegue alterar os proprios
   limites.
 releaseNotes: >-
+  Corrige a 27.0.0, que nao conseguia salvar a configuracao
+  ("Permission denied: /data/.config-*.tmp"). O Umbrel monta
+  ${APP_DATA_DIR}/data em /data, e quando esse diretorio ainda nao existe no
+  host quem o cria e o Docker - como root. O chown feito no Dockerfile nao
+  ajudava: o bind-mount cobre o diretorio da imagem, e o dono que vale e o do
+  host. Agora o processo sobe como root so pra ajustar o dono e cai pra uid
+  1000 imediatamente, antes de abrir socket, thread ou processo filho - entao
+  nem o painel nem o cpuminer rodam com privilegio.
+
+
   REESCRITA. O app virou um container so (cpuminer + painel + supervisor) e
   ganhou configuracao pela interface. Nao ha mais placeholder pra reeditar
   depois de cada Update: o config.json fica em ${APP_DATA_DIR} e sobrevive.
