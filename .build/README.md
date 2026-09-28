@@ -3,6 +3,40 @@
 Imagens Docker próprias usadas pelos apps desta loja. **Não é um app** — a
 pasta começa com ponto pra o umbreld não tentar interpretá-la como tal.
 
+## nerdminer (ativa)
+
+Container único do `meuapps-nerdminer`: **cpuminer-opt + painel web +
+supervisor**. Substituiu `cpuminer-sha` e `nerdminer-ui`, que ficam aqui só
+como caminho de rollback (os workflows delas continuam funcionando).
+
+**Por que um container só:** o cpuminer lê tudo por linha de comando e não
+relê nada em runtime. Configurar pela UI significa reiniciar o processo com
+argumentos novos — e um container não reinicia outro sem o socket do Docker,
+que o Umbrel proíbe. Com o supervisor dentro do mesmo container, a UI
+configura de verdade, e a config vive em `${APP_DATA_DIR}`, sobrevivendo aos
+updates.
+
+**Cuidados de memória** (depois do episódio de 24/09/2026, em que o vazamento
+do cpuminer derrubou o Umbrel três vezes):
+
+| Risco | Como está tratado |
+|---|---|
+| Vazamento do cpuminer no caminho GBT | `scantime` padrão 60s (12× menos que os 5s do upstream) + teto de memória no compose, que faz o kernel reiniciar o container em vez de derrubar a máquina |
+| Histórico crescendo sem limite | todo buffer é `deque(maxlen=…)`; as médias usam soma+contagem, nunca listas acumuladas |
+| Processo filho virando zumbi | um único `Popen` por vez, sempre com `wait()` depois de `terminate()`/`kill()` |
+| Pipe do stdout enchendo e travando o miner | thread dedicada drenando até EOF, com as linhas indo pra um deque limitado e reimpressas pro `docker logs` |
+| Threads de request presas em keep-alive | `timeout = 30` no handler, senão uma aba esquecida segura a thread pra sempre |
+| Listeners do gráfico acumulando | `renderChart` remove os do desenho anterior antes de registrar novos |
+
+**Patch do upstream:** o Dockerfile corrige um estouro de buffer no `api.c`
+(`diff_str[16]` recebendo 23 bytes da dificuldade da mainnet, invadindo o
+`algo` vizinho). Há `grep` antes e depois do `sed` pra o build **falhar** se
+o upstream mudar a linha, em vez de aplicar um patch silenciosamente vazio.
+
+**Limite que a UI não controla:** o teto de CPU — que na prática é o teto de
+temperatura — fica no `docker-compose.yml`, porque um container não altera os
+próprios limites. A UI controla threads e scantime, que operam dentro dele.
+
 ## ntp-ui
 
 Painel web do `meuapps-ntp`. Mostra o desvio do relógio, stratum, fonte de

@@ -1,37 +1,76 @@
 manifestVersion: 1
 id: meuapps-nerdminer
 name: NerdMiner CPU (Loteria)
-tagline: Minerador solo de Bitcoin estilo loteria, com CPU limitada
+tagline: Mineracao solo de Bitcoin contra o seu proprio node, configuravel pela UI
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "26.2.2"
+version: "27.0.0"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
   proprio Bitcoin Node, via getblocktemplate - sem pool, sem intermediario,
-  sem taxa. Funciona como uma loteria:
-  a chance de achar um bloco e minuscula, mas se acontecer, a recompensa
-  inteira vai para o SEU endereco Bitcoin.
+  sem taxa. Funciona como uma loteria: a chance de achar um bloco e
+  minuscula, mas se acontecer, a recompensa inteira vai para o SEU endereco.
 
 
-  IMPORTANTE: antes de usar, edite o docker-compose.yml e troque
-  SEU_ENDERECO_BTC pelo seu endereco Bitcoin real (bc1..., em minusculas).
-  Sem isso o minerador nao tem para quem minerar.
+  TUDO SE CONFIGURA PELO PROPRIO APP. Abra o painel, va em Configuracao e
+  informe o endereco Bitcoin. Nao e mais preciso editar docker-compose.yml, e
+  a configuracao sobrevive aos updates (fica em ${APP_DATA_DIR}).
+
+
+  O painel mostra hashrate ao vivo com historico de 1h, 24h e 7 dias,
+  dificuldade e altura do bloco lidas do SEU node (nao de API publica),
+  proximo halving, temperatura, e a chance por dia de achar um bloco. Da pra
+  pausar e retomar a mineracao, trocar entre solo e pool, e ajustar threads e
+  scantime sem tocar em arquivo nenhum.
 
 
   Usa uma imagem propria com as instrucoes SHA-NI do processador ligadas, o
   que rende ~5x mais hashrate que as imagens publicas de cpuminer e ainda
-  esquenta menos. Por isso basta 1 thread com meio nucleo (-t 1 + teto de
-  0.5 CPU) para nao atrapalhar os outros apps do Umbrel.
+  esquenta menos.
 
 
-  O botao Open abre um painel proprio com hashrate ao vivo e historico de 2h,
-  temperatura, frequencia, uptime e o contador de blocos encontrados. O painel
-  sonda o node por conta propria e avisa quando ele cai - a API do cpuminer
-  responde mesmo sem ninguem do outro lado, entao "o miner esta vivo" nao e a
-  mesma coisa que "estou minerando".
+  O teto de CPU (que na pratica e o teto de temperatura) e o de memoria ficam
+  no docker-compose.yml, porque um container nao consegue alterar os proprios
+  limites.
 releaseNotes: >-
-  Corrige um BUG DO PROPRIO CPUMINER-OPT que o painel expunha: o rodape
+  REESCRITA. O app virou um container so (cpuminer + painel + supervisor) e
+  ganhou configuracao pela interface. Nao ha mais placeholder pra reeditar
+  depois de cada Update: o config.json fica em ${APP_DATA_DIR} e sobrevive.
+
+
+  O que muda pra quem ja usa: ao atualizar, abra o painel e informe o
+  endereco Bitcoin em Configuracao. Enquanto ele estiver vazio, o minerador
+  nao sobe - de proposito, pra nao minerar pra endereco de ninguem.
+
+
+  Configuravel pela UI: endereco, modo (solo contra o node ou pool stratum),
+  threads, scantime, e pausar/retomar. O teto de CPU e de memoria continuam
+  no docker-compose.yml, porque um container nao altera os proprios limites -
+  e o teto de CPU e, na pratica, o teto de temperatura.
+
+
+  Painel novo: historico de 1h/24h/7d, dificuldade e altura do bloco lidas do
+  SEU node via RPC (nao de API publica, entao funciona sem internet), proximo
+  halving, e a chance por dia de achar um bloco. Estado com cor E rotulo,
+  nunca cor sozinha.
+
+
+  Cuidados de memoria, depois do episodio de 24/09 (o cpuminer vazava ~1
+  GiB/h e travou o Umbrel tres vezes): scantime padrao de 60s em vez dos 5s
+  do upstream (12x menos vazamento), teto de memoria no compose pro kernel
+  reiniciar o container em vez de derrubar a maquina, todo historico em
+  deques com maxlen, um unico processo filho por vez sempre reapeado, e o
+  stdout do cpuminer drenado por uma thread - sem isso o pipe encheria e o
+  minerador travaria.
+
+
+  Inclui a correcao do estouro de buffer no summary da API do cpuminer
+  (diff_str de 16 bytes recebendo 23), que fazia o campo ALGO aparecer como
+  numero.
+
+
+  A 26.2.2 corrigia esse estouro de buffer: o rodape
   mostrava "algoritmo: 218750" em vez de "sha256d". Nao era erro de leitura -
   a API do miner emitia isso mesmo.
 

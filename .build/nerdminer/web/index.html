@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NerdMiner</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="shell">
+
+  <aside class="side">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="1.5" y="1.5" width="29" height="29" rx="8"
+              fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M10 22V10l12 12V10" fill="none" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <div class="brand-name">NerdMiner</div>
+        <div class="brand-sub mono" id="brandSub">—</div>
+      </div>
+    </div>
+
+    <nav>
+      <a href="#/painel" class="nav-item" data-route="painel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V10M10 19V5M16 19v-6M22 19H2"/></svg>
+        Painel
+      </a>
+      <a href="#/config" class="nav-item" data-route="config">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+        Configuração
+      </a>
+    </nav>
+
+    <div class="side-foot">
+      <div class="target-card">
+        <div class="k" id="targetKind">Alvo</div>
+        <div class="mono target-host" id="targetHost">—</div>
+        <div class="status-line">
+          <span class="dot" id="targetDot"></span>
+          <span id="targetState">verificando…</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <div class="banner hidden" id="banner" role="status"></div>
+
+    <!-- ================= PAINEL ================= -->
+    <section id="view-painel">
+      <header class="page-head">
+        <div>
+          <h1 id="headline">Carregando…</h1>
+          <p class="sub" id="subline">&nbsp;</p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" id="btnRestart">Reiniciar miner</button>
+          <button type="button" class="btn btn-primary" id="btnToggle">Pausar</button>
+        </div>
+      </header>
+
+      <div class="kpis">
+        <div class="card kpi">
+          <div class="k">Hashrate</div>
+          <div class="v accent"><span id="kpiHash">—</span> <span class="unit" id="kpiHashUnit"></span></div>
+          <div class="n" id="kpiHashNote">&nbsp;</div>
+        </div>
+        <div class="card kpi">
+          <div class="k">Dificuldade da rede</div>
+          <div class="v"><span id="kpiDiff">—</span></div>
+          <div class="n" id="kpiDiffNote">&nbsp;</div>
+        </div>
+        <div class="card kpi">
+          <div class="k">Blocos encontrados</div>
+          <div class="v"><span id="kpiBlocks">—</span></div>
+          <div class="n" id="kpiBlocksNote">&nbsp;</div>
+        </div>
+        <div class="card kpi">
+          <div class="k">Chance por dia</div>
+          <div class="v"><span id="kpiOdds">—</span></div>
+          <div class="n">loteria: cada hash é um bilhete</div>
+        </div>
+      </div>
+
+      <div class="lower">
+        <div class="card chart-card">
+          <div class="card-head">
+            <h2 id="chartTitle">Hashrate · última hora</h2>
+            <div class="seg" role="group" aria-label="Intervalo do gráfico">
+              <button type="button" data-range="1h" class="on">1h</button>
+              <button type="button" data-range="24h">24h</button>
+              <button type="button" data-range="7d">7d</button>
+            </div>
+          </div>
+          <figure>
+            <svg id="chart" role="img" aria-label="Hashrate ao longo do tempo"></svg>
+            <div class="tip" id="tip" aria-hidden="true"></div>
+          </figure>
+          <p class="chart-note" id="chartNote">&nbsp;</p>
+          <details>
+            <summary>Ver dados do gráfico</summary>
+            <div class="scroll">
+              <table id="dataTable">
+                <thead><tr><th>Horário</th><th>Hashrate</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+
+        <div class="side-col">
+          <div class="card">
+            <h2>Rede Bitcoin</h2>
+            <dl class="rows" id="netRows"></dl>
+          </div>
+          <div class="card">
+            <h2>Dispositivo</h2>
+            <dl class="rows" id="devRows"></dl>
+            <div class="meter" id="tempMeter" hidden>
+              <div class="meter-bar"><span id="tempFill"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CONFIG ================= -->
+    <section id="view-config" hidden>
+      <header class="page-head">
+        <div>
+          <a class="back" href="#/painel">← Voltar ao painel</a>
+          <h1>Configuração</h1>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn" id="btnDiscard" disabled>Descartar</button>
+          <button type="button" class="btn btn-primary" id="btnSave" disabled>Salvar e reiniciar</button>
+        </div>
+      </header>
+
+      <form id="cfgForm" class="cfg-grid" novalidate>
+        <div class="card">
+          <h2>Mineração</h2>
+
+          <div class="field">
+            <label for="fMode">Modo</label>
+            <select id="fMode" name="mode">
+              <option value="solo">Solo — contra o seu próprio node</option>
+              <option value="pool">Pool — stratum externo</option>
+            </select>
+            <p class="help" id="modeHelp"></p>
+          </div>
+
+          <div class="field">
+            <label for="fAddr">Endereço Bitcoin (recompensa)</label>
+            <input id="fAddr" name="btc_address" class="mono" placeholder="bc1q…"
+                   autocomplete="off" spellcheck="false">
+            <p class="help">Em solo, a recompensa do bloco vai direto para este endereço. Não há operador de pool para corrigir engano — confira caractere a caractere.</p>
+            <p class="err" id="errAddr" hidden></p>
+          </div>
+
+          <div class="two">
+            <div class="field">
+              <label for="fThreads">Threads</label>
+              <input id="fThreads" name="threads" type="number" min="1" step="1" class="mono">
+              <p class="help" id="threadsHelp"></p>
+            </div>
+            <div class="field">
+              <label for="fScan">Scantime (s)</label>
+              <input id="fScan" name="scantime" type="number" min="5" max="3600" step="1" class="mono">
+              <p class="help">Intervalo entre pedidos de trabalho novo. Valores baixos sobrecarregam o node.</p>
+            </div>
+          </div>
+          <p class="err" id="errNum" hidden></p>
+
+          <div class="divider" id="poolBlock">
+            <h3>Pool (apenas no modo pool)</h3>
+            <div class="two">
+              <div class="field">
+                <label for="fPoolUrl">URL da pool</label>
+                <input id="fPoolUrl" name="pool_url" class="mono"
+                       placeholder="stratum+tcp://host:porta" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="fPoolPw">Senha da pool</label>
+                <input id="fPoolPw" name="pool_password" type="password"
+                       placeholder="••••• (inalterada)" autocomplete="new-password">
+              </div>
+            </div>
+            <p class="err" id="errPool" hidden></p>
+          </div>
+        </div>
+
+        <div class="card sys">
+          <h2>Sistema</h2>
+          <dl class="rows" id="sysRows"></dl>
+          <p class="help">As credenciais RPC do Bitcoin vêm do próprio Umbrel e nunca são gravadas por este app.</p>
+        </div>
+      </form>
+    </section>
+
+  </main>
+</div>
+
+<div class="overlay hidden" id="overlay">
+  <div class="overlay-box">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="overlayText">Aplicando…</p>
+  </div>
+</div>
+
+<script src="chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

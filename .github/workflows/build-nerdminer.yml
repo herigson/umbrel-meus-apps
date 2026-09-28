@@ -1,0 +1,108 @@
+name: build nerdminer
+
+# Publica ghcr.io/<owner>/nerdminer - cpuminer + painel + supervisor num
+# container so. Substitui as imagens cpuminer-sha e nerdminer-ui.
+#
+# Roda sozinho quando algo em .build/nerdminer muda, ou na mao em
+# Actions -> Run workflow.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.build/nerdminer/**'
+      - '.github/workflows/build-nerdminer.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da imagem. Vazio = usa .build/nerdminer/VERSION'
+        required: false
+        default: ''
+      cpuminer_version:
+        description: 'Tag do cpuminer-opt (ex: v26.1). NAO usar v27.4 - mal versionada, contem codigo 24.7'
+        required: false
+        default: 'v26.1'
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/nerdminer
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Definir tag
+        id: ver
+        run: |
+          T="${{ github.event.inputs.tag }}"
+          [ -z "$T" ] && T="$(tr -d ' \n\r' < .build/nerdminer/VERSION)"
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+          C="${{ github.event.inputs.cpuminer_version }}"
+          [ -z "$C" ] && C="v26.1"
+          echo "cpuminer=$C" >> "$GITHUB_OUTPUT"
+          echo "imagem $T (cpuminer $C)"
+
+      # A maquina de desenvolvimento nao tem interpretador; a validacao de
+      # sintaxe acontece aqui, antes de gastar o build do cpuminer (que e lento).
+      - name: Checar sintaxe do Python
+        run: |
+          for f in .build/nerdminer/*.py; do
+            echo "-> $f"
+            python3 -m py_compile "$f"
+          done
+
+      - name: Checar sintaxe do JavaScript
+        run: |
+          for f in .build/nerdminer/web/*.js; do
+            echo "-> $f"
+            node --check "$f"
+          done
+
+      - name: Checar HTML e CSS minimamente
+        run: |
+          python3 - <<'PY'
+          import html.parser, sys, pathlib
+          src = pathlib.Path(".build/nerdminer/web/index.html").read_text(encoding="utf-8")
+          class P(html.parser.HTMLParser):
+              def error(self, msg): raise AssertionError(msg)
+          P().feed(src)
+          css = pathlib.Path(".build/nerdminer/web/app.css").read_text(encoding="utf-8")
+          assert css.count("{") == css.count("}"), "chaves desbalanceadas no CSS"
+          print("html/css ok")
+          PY
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v7
+        with:
+          context: .build/nerdminer
+          # O cpuminer e compilado com -march=alderlake: so faz sentido amd64.
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            CPUMINER_VERSION=${{ steps.ver.outputs.cpuminer }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo
+        run: |
+          echo "### Imagem publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "No primeiro build: Packages -> nerdminer -> Package settings -> Change visibility -> Public." >> "$GITHUB_STEP_SUMMARY"

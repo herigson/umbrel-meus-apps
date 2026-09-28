@@ -3,92 +3,47 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      # O botao Open agora abre o painel (antes caia na API texto do cpuminer
-      # e o navegador so mostrava ECONNRESET).
-      APP_HOST: meuapps-nerdminer_ui_1
+      APP_HOST: meuapps-nerdminer_miner_1
       APP_PORT: 8080
 
   miner:
-    # Build proprio do cpuminer-opt com SHA-NI (ver .build/cpuminer-sha).
-    # As imagens publicas sao compiladas sem SHA e rendem ~5.5 MH/s por
-    # thread neste N100; esta rende ~27 MH/s por thread e roda mais fria.
-    image: ghcr.io/herigson/cpuminer-sha:26.1-r1
+    # Container unico: cpuminer + painel + supervisor (ver .build/nerdminer).
+    # Antes eram duas imagens (cpuminer-sha e nerdminer-ui). Foram fundidas
+    # porque configurar pela UI exige reiniciar o cpuminer com argumentos
+    # novos, e um container nao reinicia outro sem o socket do Docker.
+    #
+    # Nao ha mais bloco "command": os argumentos sao montados pelo supervisor
+    # a partir do config.json, que a UI edita.
+    image: ghcr.io/herigson/nerdminer:2.0.0
     restart: unless-stopped
-    # A imagem tem ENTRYPOINT ["cpuminer"], entao aqui vao SO os argumentos -
-    # nao repetir "cpuminer" na primeira linha (era assim na imagem antiga).
-    #
-    # MINERACAO SOLO CONTRA O PROPRIO NODE (desde 26.2.0).
-    # O cpuminer fala getblocktemplate direto com o Bitcoin Core e submete o
-    # bloco ele mesmo via submitblock - nao existe pool no meio. O esquema da
-    # URL e que decide: http:// = GBT, stratum+tcp:// = pool.
-    #
-    # TROQUE SEU_ENDERECO_BTC pelo seu endereco Bitcoin real (bc1..., em
-    # minusculas). Em solo o coinbase paga EXATAMENTE esse endereco: confira
-    # caractere a caractere, nao ha operador de pool pra corrigir engano.
-    #
-    # Pra voltar ao pool publico, troque as 6 linhas de -o/-u/-p por:
-    #   - -o
-    #   - stratum+tcp://public-pool.io:21496
-    #   - -u
-    #   - SEU_ENDERECO_BTC.umbrel
-    #   - -p
-    #   - x
-    # e ajuste o POOL_URL do servico ui pro mesmo endereco.
-    command:
-      - -a
-      - sha256d
-      - -o
-      - http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}
-      - -u
-      - ${APP_BITCOIN_RPC_USER}
-      - -p
-      - ${APP_BITCOIN_RPC_PASS}
-      - --coinbase-addr=SEU_ENDERECO_BTC
-      - -t
-      - "1"
-      # O --api-bind ja define QUEM pode conectar e em que porta, no formato
-      # <ip>:<porta>. O literal 0.0.0.0 e o "aceita todos" do cpuminer
-      # (ALLIP4 no api.c: zera ip e mascara), necessario pro painel, que fala
-      # de outro container. NAO existe a opcao --api-allow: passa-la derruba
-      # o miner em loop ("unrecognized option").
-      # A 4048 nao e publicada no host - so a rede interna do app alcanca -
-      # e o acesso e somente leitura (comandos remotos exigem --api-remote).
-      - --api-bind
-      - 0.0.0.0:4048
-    # 1 thread + meio nucleo: com SHA-NI isso ja da ~11 MH/s, quatro vezes o
-    # que 2 threads davam antes, e sem passar dos 80 C (o episodio dos 89 C
-    # foi com 2 threads no binario sem SHA).
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
 
-  ui:
-    # Painel web: le a API do miner e serve o dashboard (ver .build/nerdminer-ui).
-    image: ghcr.io/herigson/nerdminer-ui:1.2.0
-    restart: unless-stopped
-    depends_on:
-      - miner
+    volumes:
+      # Onde fica o config.json editado pela UI. Persiste entre updates -
+      # acabou o ritual de reeditar o endereco depois de cada Update.
+      - ${APP_DATA_DIR}/data:/data
+
     environment:
-      # Na rede do Umbrel vale o nome COMPLETO do container (mesmo formato do
-      # APP_HOST); o nome curto "miner" nao resolve. O painel testa a lista em
-      # ordem e fica com o primeiro que responder - o ultimo item cobre a
-      # nomenclatura com hifen que o Compose v2 usa.
-      MINER_HOST: "meuapps-nerdminer_miner_1,miner,meuapps-nerdminer-miner-1"
-      MINER_PORT: "4048"
+      # Credenciais RPC do Bitcoin: vem do exports.sh do app oficial. Nunca
+      # sao gravadas por nos em disco nem vao para o repositorio.
+      APP_BITCOIN_NODE_IP: ${APP_BITCOIN_NODE_IP}
+      APP_BITCOIN_RPC_PORT: ${APP_BITCOIN_RPC_PORT}
+      APP_BITCOIN_RPC_USER: ${APP_BITCOIN_RPC_USER}
+      APP_BITCOIN_RPC_PASS: ${APP_BITCOIN_RPC_PASS}
       LISTEN_PORT: "8080"
       POLL_SECONDS: "10"
-      # 720 pontos a cada 10s = 2h de historico no grafico
-      HISTORY_POINTS: "720"
-      # A API do cpuminer responde mesmo com o alvo fora - ela diz se o MINER
-      # esta vivo, nao se ele esta minerando. O painel sonda o alvo por conta
-      # propria pra distinguir os dois casos. MANTENHA IGUAL ao -o do miner.
-      #
-      # O esquema da URL tambem define o modo do painel: http:// = solo (sem
-      # shares, esconde os quadros de share), stratum+tcp:// = pool.
-      POOL_URL: "http://${APP_BITCOIN_NODE_IP}:${APP_BITCOIN_RPC_PORT}"
-      POOL_CHECK_SECONDS: "30"
+      PROBE_SECONDS: "30"
+      NODE_INFO_TTL: "60"
+
     deploy:
       resources:
         limits:
-          cpus: "0.25"
+          # TETO DE CPU = TETO DE TEMPERATURA, e ele mora AQUI, nao na UI:
+          # um container nao altera o proprio limite. 0.6 mantem o calor no
+          # mesmo patamar de antes (miner 0.5 + painel 0.25, separados).
+          # Para esquentar menos, baixe este numero.
+          cpus: "0.6"
+          # O cpuminer vaza memoria no caminho getblocktemplate (~85 MiB/h
+          # com scantime 60; era ~1 GiB/h com o padrao de 5s do upstream).
+          # Este teto faz o kernel reiniciar o container em vez de derrubar o
+          # Umbrel inteiro - com "restart: unless-stopped", invisivel.
+          memory: 1G
