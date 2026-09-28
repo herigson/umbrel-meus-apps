@@ -38,11 +38,19 @@ jobs:
       - name: Definir tag
         id: ver
         run: |
+          # if/fi em vez de "[ -z "$X" ] && X=..." so por clareza. A forma com
+          # && funciona: o "bash -e" do runner isenta falhas dentro de lista
+          # && (so morderia se fosse a ULTIMA linha do script, o que nao e).
           T="${{ github.event.inputs.tag }}"
-          [ -z "$T" ] && T="$(tr -d ' \n\r' < .build/nerdminer/VERSION)"
+          if [ -z "$T" ]; then
+            T="$(tr -d ' \n\r' < .build/nerdminer/VERSION)"
+          fi
           echo "tag=$T" >> "$GITHUB_OUTPUT"
+
           C="${{ github.event.inputs.cpuminer_version }}"
-          [ -z "$C" ] && C="v26.1"
+          if [ -z "$C" ]; then
+            C="v26.1"
+          fi
           echo "cpuminer=$C" >> "$GITHUB_OUTPUT"
           echo "imagem $T (cpuminer $C)"
 
