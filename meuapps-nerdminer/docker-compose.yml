@@ -42,8 +42,10 @@ services:
           # Aqui fica so o limite de quanto o miner pode tomar dos outros
           # apps - 0.5 e o valor que rodou por semanas (~11,4 MH/s).
           cpus: "0.5"
-          # O cpuminer vaza memoria no caminho getblocktemplate (~85 MiB/h
-          # com scantime 60; era ~1 GiB/h com o padrao de 5s do upstream).
-          # Este teto faz o kernel reiniciar o container em vez de derrubar o
-          # Umbrel inteiro - com "restart: unless-stopped", invisivel.
+          # O cpuminer vaza memoria no caminho getblocktemplate. MEDIDO em
+          # 28/09/2026 com scantime 60: ~105 MiB/h (base ~57 MiB), ou seja
+          # ~9h por ciclo ate bater neste teto. Com o padrao de 5s do
+          # upstream eram ~1 GiB/h, que derrubou a maquina 3x.
+          # O teto faz o kernel reiniciar so o container - com
+          # "restart: unless-stopped", alguns segundos e invisivel.
           memory: 1G
