@@ -14,7 +14,7 @@ services:
     #
     # Nao ha mais bloco "command": os argumentos sao montados pelo supervisor
     # a partir do config.json, que a UI edita.
-    image: ghcr.io/herigson/nerdminer:2.0.5
+    image: ghcr.io/herigson/nerdminer:2.1.0
     restart: unless-stopped
 
     volumes:
@@ -37,11 +37,11 @@ services:
     deploy:
       resources:
         limits:
-          # TETO DE CPU = TETO DE TEMPERATURA, e ele mora AQUI, nao na UI:
-          # um container nao altera o proprio limite. 0.6 mantem o calor no
-          # mesmo patamar de antes (miner 0.5 + painel 0.25, separados).
-          # Para esquentar menos, baixe este numero.
-          cpus: "0.6"
+          # Teto de fatia de CPU. O controle de TEMPERATURA agora e pela UI
+          # (--max-temp do cpuminer), que e o jeito certo: mede o que importa.
+          # Aqui fica so o limite de quanto o miner pode tomar dos outros
+          # apps - 0.5 e o valor que rodou por semanas (~11,4 MH/s).
+          cpus: "0.5"
           # O cpuminer vaza memoria no caminho getblocktemplate (~85 MiB/h
           # com scantime 60; era ~1 GiB/h com o padrao de 5s do upstream).
           # Este teto faz o kernel reiniciar o container em vez de derrubar o

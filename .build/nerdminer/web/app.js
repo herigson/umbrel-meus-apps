@@ -186,10 +186,15 @@ function renderStats() {
   // Dispositivo. A temperatura leva RÓTULO junto do número — uma barra
   // colorida sem legenda deixaria a cor carregando o significado sozinha.
   const temp = Number(cur.TEMP);
-  const tempText = isFinite(temp) && temp > 0
-    ? Math.round(temp) + " °C · " +
-      (temp > 80 ? "alta" : temp >= 70 ? "atenção" : "normal")
-    : null;
+  const limit = config && config.max_temp ? Number(config.max_temp) : 0;
+  let tempText = null;
+  if (isFinite(temp) && temp > 0) {
+    // Com limite configurado, o rótulo diz onde estamos em relação a ELE —
+    // é isso que explica um hashrate baixo, e não a escala genérica.
+    tempText = Math.round(temp) + " °C · " + (
+      limit ? (temp >= limit ? "no limite, pausando" : "abaixo do limite de " + limit + " °C")
+            : (temp > 80 ? "alta" : temp >= 70 ? "atenção" : "normal"));
+  }
   rows($("devRows"), [
     ["Temperatura", tempText],
     ["Frequência", cur.FREQ ? (Number(cur.FREQ) / 1e6).toFixed(2) + " GHz" : null],
@@ -259,6 +264,11 @@ function fillForm(cfg) {
   $("fThreads").value = cfg.threads;
   $("fThreads").max = cfg.max_threads;
   $("fScan").value = cfg.scantime;
+  $("fMaxTemp").value = cfg.max_temp;
+  if (cfg.temp_range) {
+    $("fMaxTemp").min = 0;
+    $("fMaxTemp").max = cfg.temp_range[1];
+  }
   $("fPoolUrl").value = cfg.pool_url || "";
   $("fPoolPw").value = "";
   $("threadsHelp").textContent = "1 a " + cfg.max_threads +
@@ -279,6 +289,7 @@ function snapshotForm() {
     btc_address: $("fAddr").value.trim(),
     threads: $("fThreads").value,
     scantime: $("fScan").value,
+    max_temp: $("fMaxTemp").value,
     pool_url: $("fPoolUrl").value.trim(),
     pool_password: $("fPoolPw").value,
   });
@@ -340,6 +351,16 @@ function validateForm() {
     return null;
   }
 
+  const maxTemp = parseInt($("fMaxTemp").value, 10);
+  if (!isFinite(maxTemp) || maxTemp < 0) {
+    showError("errNum", "Temperatura máxima inválida. Use 0 para desligar.");
+    return null;
+  }
+  if (maxTemp !== 0 && !(maxTemp >= 45 && maxTemp <= 95)) {
+    showError("errNum", "Temperatura máxima deve ser 0 (desligado) ou entre 45 e 95 °C.");
+    return null;
+  }
+
   const mode = $("fMode").value;
   const poolUrl = $("fPoolUrl").value.trim();
   if (mode === "pool" && !/^stratum\+tcps?:\/\/[^\s:]+:\d{1,5}$/.test(poolUrl)) {
@@ -347,7 +368,8 @@ function validateForm() {
     return null;
   }
 
-  const body = { mode, btc_address: addr, threads, scantime: scan };
+  const body = { mode, btc_address: addr, threads, scantime: scan,
+                 max_temp: maxTemp };
   if (mode === "pool") body.pool_url = poolUrl;
   const pw = $("fPoolPw").value;
   if (pw) body.pool_password = pw;   // vazio = mantém a atual

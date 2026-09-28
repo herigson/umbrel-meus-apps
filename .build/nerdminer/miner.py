@@ -67,10 +67,18 @@ def build_args(cfg):
                  "-p", cfg["pool_password"]]
 
     args += ["-t", str(cfg["threads"]),
-             "-s", str(cfg["scantime"]),
-             # Mesmo container que o painel, entao loopback basta - a API
-             # nao fica exposta nem pra rede interna dos apps.
-             "--api-bind", "%s:%d" % (API_HOST, API_PORT)]
+             "-s", str(cfg["scantime"])]
+
+    # Governador termico do proprio cpuminer: acima do limite as threads
+    # pausam ("CPU temp too high: XC max Y, waiting...") e voltam ao esfriar.
+    # E o unico jeito de controlar temperatura de dentro do container - o
+    # teto de CPU e cgroup, e um container nao altera o proprio cgroup.
+    if cfg.get("max_temp"):
+        args += ["--max-temp=%d" % int(cfg["max_temp"])]
+
+    # Mesmo container que o painel, entao loopback basta - a API nao fica
+    # exposta nem pra rede interna dos apps.
+    args += ["--api-bind", "%s:%d" % (API_HOST, API_PORT)]
     return args, None
 
 

@@ -24,12 +24,20 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
 MIN_SCANTIME = 5
 MAX_SCANTIME = 3600
 MAX_THREADS = max(1, os.cpu_count() or 1)
+# Abaixo de 45 C a maquina praticamente nunca mineraria; acima de 95 nao
+# protege nada. 0 desliga o governador.
+MIN_TEMP = 45
+MAX_TEMP = 95
 
 DEFAULTS = {
     "mode": "solo",              # "solo" (getblocktemplate) ou "pool" (stratum)
     "btc_address": "",           # vazio = miner nao sobe; a UI pede o endereco
     "threads": 1,
     "scantime": 60,              # 5s (padrao do cpuminer) fritava o node
+    # Governador termico do proprio cpuminer (--max-temp): passou do limite,
+    # as threads pausam ate esfriar. 0 = desligado. E o jeito de controlar
+    # temperatura pela UI - o teto de CPU do compose um container nao muda.
+    "max_temp": 0,
     "pool_url": "stratum+tcp://public-pool.io:21496",
     "pool_password": "x",
     "paused": False,
@@ -92,6 +100,15 @@ def _validate(cfg):
         raise ConfigError("Scantime deve estar entre %d e %d segundos."
                           % (MIN_SCANTIME, MAX_SCANTIME))
     out["scantime"] = scantime
+
+    try:
+        max_temp = int(cfg.get("max_temp", out["max_temp"]))
+    except (TypeError, ValueError):
+        raise ConfigError("Temperatura maxima invalida.")
+    if max_temp != 0 and not MIN_TEMP <= max_temp <= MAX_TEMP:
+        raise ConfigError("Temperatura maxima deve ser 0 (desligado) ou entre "
+                          "%d e %d C." % (MIN_TEMP, MAX_TEMP))
+    out["max_temp"] = max_temp
 
     pool_url = (cfg.get("pool_url") or "").strip()
     if mode == "pool":
@@ -185,4 +202,5 @@ def public(cfg=None):
     cfg.pop("pool_password", None)
     cfg["pool_password_set"] = True
     cfg["max_threads"] = MAX_THREADS
+    cfg["temp_range"] = [MIN_TEMP, MAX_TEMP]
     return cfg
