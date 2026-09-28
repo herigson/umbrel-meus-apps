@@ -29,12 +29,18 @@ let offline = false;
 
 const nf = new Intl.NumberFormat("pt-BR");
 
+/* Vai até ZH/s: o hashrate da rede toda passa de 1e21 H/s, e parar em TH/s
+   imprimia "1003969285.48 TH/s" no card da Rede Bitcoin. */
+const HASH_UNITS = [
+  [1e21, "ZH/s"], [1e18, "EH/s"], [1e15, "PH/s"], [1e12, "TH/s"],
+  [1e9, "GH/s"], [1e6, "MH/s"], [1e3, "kH/s"],
+];
+
 function fmtHash(hs) {
   const n = Number(hs) || 0;
-  if (n >= 1e12) return [(n / 1e12).toFixed(2), "TH/s"];
-  if (n >= 1e9) return [(n / 1e9).toFixed(2), "GH/s"];
-  if (n >= 1e6) return [(n / 1e6).toFixed(2), "MH/s"];
-  if (n >= 1e3) return [(n / 1e3).toFixed(2), "kH/s"];
+  for (const [factor, unit] of HASH_UNITS) {
+    if (n >= factor) return [(n / factor).toFixed(2), unit];
+  }
   return [n.toFixed(0), "H/s"];
 }
 
@@ -55,7 +61,8 @@ function fmtDuration(seconds) {
   const m = Math.floor((s % 3600) / 60);
   if (d) return d + "d " + h + "h " + m + "m";
   if (h) return h + "h " + m + "m";
-  return m + "m";
+  if (m) return m + "m";
+  return s + "s";     // "0m" logo após subir ficava sem sentido
 }
 
 function fmtClock(ts) {
@@ -185,24 +192,19 @@ function renderStats() {
     ["Sincronizado", net.ibd === undefined ? null : (net.ibd ? "não (IBD)" : "sim")],
   ]);
 
-  // Dispositivo
+  // Dispositivo. A temperatura leva RÓTULO junto do número — uma barra
+  // colorida sem legenda deixaria a cor carregando o significado sozinha.
   const temp = Number(cur.TEMP);
+  const tempText = isFinite(temp) && temp > 0
+    ? Math.round(temp) + " °C · " +
+      (temp > 80 ? "alta" : temp >= 70 ? "atenção" : "normal")
+    : null;
   rows($("devRows"), [
-    ["Temperatura", isFinite(temp) && temp > 0 ? Math.round(temp) + " °C" : null],
+    ["Temperatura", tempText],
     ["Frequência", cur.FREQ ? (Number(cur.FREQ) / 1e6).toFixed(2) + " GHz" : null],
     ["Algoritmo", cur.ALGO && !/^\d+$/.test(cur.ALGO) ? cur.ALGO : "sha256d"],
     ["Versão", cur.NAME ? (cur.NAME + " " + (cur.VER || "")).trim() : null],
   ]);
-
-  const meter = $("tempMeter");
-  if (isFinite(temp) && temp > 0) {
-    meter.hidden = false;
-    const fill = $("tempFill");
-    fill.style.width = Math.min(100, (temp / 100) * 100) + "%";
-    fill.className = temp > 75 ? "hot" : temp >= 60 ? "warn" : "";
-  } else {
-    meter.hidden = true;
-  }
 
   $("brandSub").textContent = (cur.NAME || "cpuminer") + " · " +
     (stats.solo ? "solo" : "pool");

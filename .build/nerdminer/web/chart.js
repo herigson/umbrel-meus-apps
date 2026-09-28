@@ -28,12 +28,16 @@ function niceCeil(value) {
   return step * base;
 }
 
+const HASH_UNITS = [
+  [1e21, "ZH/s"], [1e18, "EH/s"], [1e15, "PH/s"], [1e12, "TH/s"],
+  [1e9, "GH/s"], [1e6, "MH/s"], [1e3, "kH/s"],
+];
+
 function fmtHashrate(hs) {
   const n = Number(hs) || 0;
-  if (n >= 1e12) return [(n / 1e12).toFixed(2), "TH/s"];
-  if (n >= 1e9) return [(n / 1e9).toFixed(2), "GH/s"];
-  if (n >= 1e6) return [(n / 1e6).toFixed(2), "MH/s"];
-  if (n >= 1e3) return [(n / 1e3).toFixed(2), "kH/s"];
+  for (const [factor, unit] of HASH_UNITS) {
+    if (n >= factor) return [(n / factor).toFixed(2), unit];
+  }
   return [n.toFixed(0), "H/s"];
 }
 
