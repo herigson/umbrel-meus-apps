@@ -14,7 +14,7 @@ services:
     #
     # Nao ha mais bloco "command": os argumentos sao montados pelo supervisor
     # a partir do config.json, que a UI edita.
-    image: ghcr.io/herigson/nerdminer:2.0.3
+    image: ghcr.io/herigson/nerdminer:2.0.4
     restart: unless-stopped
 
     volumes:

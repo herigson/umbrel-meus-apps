@@ -101,6 +101,16 @@ nav { display: flex; flex-direction: column; gap: 4px; }
   display: flex; flex-direction: column; gap: 28px;
 }
 
+/* O gap do .main separa banner e secoes, NAO as linhas de dentro delas:
+   .kpis e .lower sao netos, nao filhos. Sem isto o espaco entre a linha de
+   KPIs e a do grafico era ZERO, e os cards ficavam colados. */
+#view-painel, #view-config {
+  display: flex; flex-direction: column; gap: 28px;
+}
+/* display:flex acima venceria o display:none do atributo hidden, entao a
+   secao inativa continuaria visivel. O !important resolve a precedencia. */
+[hidden] { display: none !important; }
+
 /* ---------- cabecalho ---------- */
 
 .page-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
