@@ -355,6 +355,7 @@ function validateForm() {
 }
 
 async function saveConfig() {
+  $("saveError").classList.add("hidden");
   const body = validateForm();
   if (!body) return;
   $("overlayText").textContent = "Salvando e reiniciando o miner…";
@@ -366,7 +367,11 @@ async function saveConfig() {
     await waitForBackend();
     location.hash = "#/painel";
   } catch (err) {
-    showError("errAddr", err.message);
+    // Falha de gravação (permissão, disco cheio) NÃO é erro do campo
+    // endereço. Mandar isso pro erro do campo dizia a coisa errada: o
+    // valor podia estar perfeito e o problema ser o /data.
+    $("saveError").textContent = "Não foi possível salvar: " + err.message;
+    $("saveError").classList.remove("hidden");
   } finally {
     $("overlay").classList.add("hidden");
   }
