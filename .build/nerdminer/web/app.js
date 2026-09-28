@@ -174,6 +174,25 @@ function renderStats() {
 
   $("kpiOdds").textContent = oddsPerDay(cur.HS, net.difficulty);
 
+  // Pool: só existe em modo stratum. Em solo o miner não submete share
+  // nenhuma — só blocos — então o card inteiro sai da tela.
+  const poolCard = $("poolCard");
+  poolCard.hidden = !!stats.solo;
+  if (!stats.solo) {
+    const acc = Number(cur.ACC || 0);
+    const rej = Number(cur.REJ || 0);
+    const total = acc + rej;
+    const perMin = Number(cur.ACCMN || 0);
+    rows($("poolRows"), [
+      ["Shares aceitas", nf.format(acc)],
+      ["Rejeitadas", total
+        ? nf.format(rej) + " (" + ((rej / total) * 100).toFixed(1) + "%)"
+        : nf.format(rej)],
+      ["Share a cada", perMin > 0 ? (1 / perMin).toFixed(1) + " min" : null],
+      ["Dificuldade do share", cur.DIFF ? fmtBig(cur.DIFF) : null],
+    ]);
+  }
+
   // Rede
   rows($("netRows"), [
     ["Altura do bloco", net.blockHeight ? nf.format(net.blockHeight) : null],
@@ -431,6 +450,7 @@ async function tickStats() {
   try {
     stats = await getJSON("api/stats");
     offline = false;
+    document.body.classList.remove("loading");   // chegou a primeira leitura
   } catch (err) {
     offline = true;
   }

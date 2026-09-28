@@ -234,12 +234,30 @@ input[aria-invalid="true"] { border-color: var(--warn); }
 
 .stale { opacity: 0.45; }
 
+/* Estado de carregamento: os valores pulsam de leve até a primeira leitura
+   chegar, em vez de ficarem travados num "—" que parece defeito. */
+@keyframes pulse { 0%, 100% { opacity: .3; } 50% { opacity: .65; } }
+body.loading .kpi .v,
+body.loading .rows dd { animation: pulse 1.4s ease-in-out infinite; }
+.card { transition: border-color .15s ease; }
+.card:hover { border-color: var(--border-strong); }
+
+@media (prefers-reduced-motion: reduce) {
+  body.loading .kpi .v,
+  body.loading .rows dd { animation: none; }
+  .card { transition: none; }
+}
+
 /* ---------- responsivo ---------- */
 
 @media (max-width: 1024px) {
   .shell { flex-direction: column; }
   .side {
     width: auto; flex-direction: row; align-items: center; gap: 16px;
+    /* SEM isto a barra nao quebra linha: marca + menu + estado do alvo
+       somam mais que a largura de um celular e o conteudo vaza pra fora
+       da tela, criando rolagem horizontal. */
+    flex-wrap: wrap;
     border-right: 0; border-bottom: 1px solid var(--border);
     padding: 12px 16px;
     padding-top: calc(12px + env(safe-area-inset-top, 0px));
@@ -255,10 +273,29 @@ input[aria-invalid="true"] { border-color: var(--warn); }
 @media (max-width: 640px) {
   h1 { font-size: 22px; }
   .brand-sub, .target-card .k { display: none; }
-  .kpi .v { font-size: 28px; }
+
+  /* Duas faixas no celular: marca + estado em cima, menu embaixo.
+     Numa faixa so, os dois itens de menu nao cabem ao lado do resto. */
+  .side { gap: 10px 12px; }
+  .brand { flex: 0 1 auto; min-width: 0; }
+  .brand-name { font-size: 15px; }
+  .side-foot { order: 2; margin-left: auto; }
+  nav { order: 3; flex: 1 1 100%; }
+  .nav-item { flex: 1; justify-content: center; }
+  .target-host { font-size: 11px; max-width: 42vw; }
+
+  /* Hero do hashrate: no celular o numero e o conteudo principal. */
   .kpis { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .kpi:first-child { grid-column: 1 / -1; align-items: center; text-align: center; }
+  .kpi:first-child .v { font-size: 46px; }
+  .kpi .v { font-size: 26px; }
+
   .page-head .actions { margin-left: 0; width: 100%; }
   .page-head .actions .btn { flex: 1; }
   .two { grid-template-columns: 1fr; }
-  svg#chart { height: 180px; }
+  svg#chart { height: 190px; }
 }
+
+/* Nada pode gerar rolagem horizontal em largura nenhuma - so tabela e
+   grafico rolam, e cada um dentro do proprio container. */
+html, body { max-width: 100%; overflow-x: hidden; }

@@ -6,7 +6,7 @@
 <title>NerdMiner</title>
 <link rel="stylesheet" href="app.css">
 </head>
-<body>
+<body class="loading">
 
 <div class="shell">
 
@@ -114,6 +114,12 @@
         </div>
 
         <div class="side-col">
+          <!-- Só em modo pool: em solo não existem shares, o miner só
+               submete blocos. -->
+          <div class="card" id="poolCard" hidden>
+            <h2>Pool</h2>
+            <dl class="rows" id="poolRows"></dl>
+          </div>
           <div class="card">
             <h2>Rede Bitcoin</h2>
             <dl class="rows" id="netRows"></dl>
