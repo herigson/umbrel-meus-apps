@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Mineracao solo de Bitcoin contra o seu proprio node, configuravel pela UI
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "27.3.0"
+version: "27.4.0"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
@@ -34,7 +34,45 @@ description: >-
   no docker-compose.yml, porque um container nao consegue alterar os proprios
   limites.
 releaseNotes: >-
-  Corrige a 27.0.0, que nao conseguia salvar a configuracao
+  Corrige o painel que dizia "producao parada" com o minerador trabalhando, e
+  o supervisor que nao percebia a morte do cpuminer.
+
+
+  O que aconteceu em 29/09/2026: as 04:49 o cpuminer chegou ao teto de 1 GiB
+  de memoria e foi morto pelo OOM killer do cgroup - que e exatamente o que
+  esse teto existe pra fazer, ja que ele vaza ~91 MiB/h. So que ninguem subiu
+  outro. O painel passou NOVE HORAS dizendo "rodando", com restarts: 0 e o
+  hashrate congelado na ultima leitura antes da morte.
+
+
+  Sao duas falhas somadas. A primeira: o supervisor consultava
+  _state["running"] - memoria, nao verificacao - pra decidir se devia subir
+  outro processo. Bastava esse campo dessincronizar de _proc pra condicao
+  nunca mais disparar, e ele ficava de bracos cruzados pra sempre sem avisar
+  ninguem. Agora a condicao e a verdade nua (e pra rodar e nao ha processo),
+  o corpo do laco inteiro vai num try/except pra que uma excecao nao mate a
+  thread em silencio, e o _kill tambem captura TimeoutExpired, que nao e
+  OSError e escapava deixando o estado incoerente.
+
+
+  A segunda: o painel tratava "API do miner sem responder" como "producao
+  parada" e estampava 0 H/s em vermelho. Mas sem medicao nao e sem producao -
+  o cpuminer estava a 10,5 MH/s do outro lado. Agora existe o estado
+  "minerando sem telemetria", que vale quando a API esta muda mas o cpuminer
+  continua escrevendo no stdout: o hashrate vira "-" em vez de um zero
+  inventado, e um aviso explica que os numeros na tela sao a ultima medicao,
+  nao o estado de agora.
+
+
+  E um resgate automatico: quando a API fica muda E o stdout fica calado por
+  mais de 5 minutos, os dois sinais juntos nao tem leitura inocente, e o app
+  sobe outro cpuminer sozinho. Ha carencia de 60s e no maximo um resgate a
+  cada 10 min, pra que um defeito permanente vire um reinicio periodico em
+  vez de um laco de reinicios. O contador aparece no card Dispositivo.
+
+
+  A 27.3.0 trouxe o limite de CPU pela interface. A 27.0.0 nao conseguia
+  salvar a configuracao
   ("Permission denied: /data/.config-*.tmp"). O Umbrel monta
   ${APP_DATA_DIR}/data em /data, e quando esse diretorio ainda nao existe no
   host quem o cria e o Docker - como root. O chown feito no Dockerfile nao

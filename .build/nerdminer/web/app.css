@@ -158,6 +158,8 @@ nav { display: flex; flex-direction: column; gap: 4px; }
 .kpi .n { font-size: 12px; color: var(--muted); }
 .kpi .n.good { color: var(--ok); }
 .kpi .n.bad { color: var(--danger-text); }
+/* Atenção, não erro: minerando sem telemetria. Mesmo âmbar do .dot.warn. */
+.kpi .n.warn { color: var(--accent); }
 
 .lower { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: start; }
 .side-col { display: flex; flex-direction: column; gap: 20px; }

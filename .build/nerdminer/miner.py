@@ -42,6 +42,11 @@ THROTTLE_PERIOD = 0.25
 _lock = threading.RLock()
 _proc = None
 _log = deque(maxlen=LOG_LINES)
+# Batimento: instante da ultima linha que o cpuminer escreveu. E o unico sinal
+# de vida que nao depende da API dele - e a API morre (ver app.rescue_miner).
+# Escrita por _drain, lida por outras threads: atribuicao de float e atomica
+# sob o GIL, entao nao precisa de lock.
+_last_log_at = 0.0
 _state = {"running": False, "reason": "ainda nao iniciado", "started_at": None,
           "restarts": 0, "exit_code": None}
 _cpu_percent = 100
@@ -88,9 +93,11 @@ def build_args(cfg):
 
 def _drain(stream):
     """Le o stdout do cpuminer ate o EOF. Nunca pode parar de ler."""
+    global _last_log_at
     try:
         for raw in iter(stream.readline, b""):
             line = raw.decode("utf-8", "replace").rstrip("\n")
+            _last_log_at = time.time()
             _log.append(line)          # deque com maxlen: limitado
             print(line, flush=True)    # mantem o "docker logs" util
     except (OSError, ValueError):
@@ -104,7 +111,7 @@ def _drain(stream):
 
 def _spawn(cfg):
     """Sobe o processo. Chamar com _lock adquirido."""
-    global _proc
+    global _proc, _last_log_at
     args, reason = build_args(cfg)
     if args is None:
         _state.update(running=False, reason=reason, started_at=None)
@@ -126,6 +133,9 @@ def _spawn(cfg):
         _proc = None
         return
 
+    # Zera o batimento agora: um processo recem-nascido ainda nao escreveu
+    # nada, e sem isto ele nasceria "calado ha muito tempo".
+    _last_log_at = time.time()
     threading.Thread(target=_drain, args=(_proc.stdout,), daemon=True).start()
     _state.update(running=True, reason="rodando", started_at=int(time.time()),
                   exit_code=None)
@@ -153,9 +163,15 @@ def _kill(timeout=10):
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=timeout)   # sem este wait, vira zumbi
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
+        # ARMADILHA 2: esse segundo wait tambem pode estourar, e
+        # TimeoutExpired NAO e OSError. Se a excecao escapasse daqui,
+        # _proc ficaria None com running=True - e o supervisor, que so
+        # age quando ve uma das duas coisas, ficaria de bracos cruzados
+        # pra sempre. O finally garante o par coerente.
         pass
-    _state.update(running=False, started_at=None)
+    finally:
+        _state.update(running=False, started_at=None)
 
 
 def apply_config():
@@ -194,7 +210,14 @@ def throttle_forever():
         with _lock:
             proc = _proc
             pct = _cpu_percent
-        if proc is None or pct >= 100 or proc.poll() is not None:
+        # Aqui nao se decide nada sobre vida e morte do processo: quem decide
+        # e o supervise(), e so ele. Antes esta linha chamava proc.poll() e
+        # tratava o None como "vivo" - mas poll() devolve None tambem quando
+        # perde a disputa pelo _waitpid_lock interno do Popen, e ai "nao sei"
+        # virava "esta vivo". (send_signal chama poll() por dentro desde o
+        # Python 3.9; nao da pra evitar, e tudo bem - ele so ignora o sinal se
+        # o processo ja morreu. O que importa e nao TOMAR DECISAO com isso.)
+        if proc is None or pct >= 100:
             _stop.wait(1)
             continue
         on = THROTTLE_PERIOD * (pct / 100.0)
@@ -218,22 +241,43 @@ def throttle_forever():
 
 
 def supervise():
-    """Loop: se era pra estar rodando e morreu, sobe de novo."""
+    """Loop: se era pra estar rodando e morreu, sobe de novo.
+
+    Esta thread e a unica rede de seguranca do minerador, entao ela nao pode
+    morrer nem ficar inerte. Duas licoes do incidente de 29/09/2026, quando o
+    OOM killer levou o cpuminer as 04:49 e ninguem subiu outro por nove horas:
+
+    * o corpo do laco vai inteiro num try/except. Uma excecao solta matava a
+      thread em silencio - e supervisor morto nao avisa que morreu, so para
+      de supervisionar;
+
+    * a condicao de subir de novo NAO consulta mais _state["running"]. Esse
+      campo e memoria ("alguem me disse que subiu"), nao verificacao. Bastava
+      ele dessincronizar de _proc pro antigo `elif ... and not
+      _state["running"]` nunca disparar. Agora a condicao e a verdade nua: e
+      pra rodar e nao ha processo.
+    """
     while not _stop.is_set():
-        with _lock:
-            proc = _proc
-            should_run = _wanted.is_set()
-            if should_run and proc is not None:
-                code = proc.poll()
-                if code is not None:
-                    proc.wait()          # reap
-                    _proc = None
-                    _state["exit_code"] = code
-                    _state["restarts"] += 1
-                    _state.update(running=False,
-                                  reason="saiu com codigo %s; reiniciando" % code)
-            elif should_run and proc is None and not _state["running"]:
-                _spawn(appconfig.load())
+        try:
+            with _lock:
+                proc = _proc
+                should_run = _wanted.is_set()
+                if should_run and proc is not None:
+                    code = proc.poll()
+                    if code is not None:
+                        proc.wait()          # reap
+                        _proc = None
+                        _state["exit_code"] = code
+                        _state["restarts"] += 1
+                        _state.update(running=False,
+                                      reason="saiu com codigo %s; reiniciando" % code)
+                        print("cpuminer saiu com codigo %s; subindo outro"
+                              % code, flush=True)
+                elif should_run and proc is None:
+                    _spawn(appconfig.load())
+        except Exception as exc:
+            print("supervisor: erro no ciclo (%s: %s); seguindo em frente"
+                  % (type(exc).__name__, exc), flush=True)
         _stop.wait(RESTART_DELAY)
 
 
@@ -248,6 +292,7 @@ def state():
     with _lock:
         out = dict(_state)
         out["log"] = list(_log)[-40:]
+        out["last_log_at"] = _last_log_at
         return out
 
 

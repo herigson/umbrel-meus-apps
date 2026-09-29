@@ -10,6 +10,9 @@ const $ = (id) => document.getElementById(id);
 
 const STATUS = {
   mining:      { dot: "ok",   head: "Minerando" },
+  // Produzindo, mas a API do cpuminer parou de responder: temos certeza de
+  // que ele trabalha (o stdout dele continua saindo) e nenhuma medição.
+  blind:       { dot: "warn", head: "Minerando sem telemetria" },
   target_down: { dot: "bad",  head: "Sem trabalho" },
   miner_down:  { dot: "bad",  head: "Miner sem responder" },
   paused:      { dot: "warn", head: "Pausado" },
@@ -131,6 +134,7 @@ function renderStats() {
   const cur = stats.current || {};
   const net = stats.network || {};
   const mining = stats.status === "mining";
+  const blind = stats.status === "blind";
 
   $("headline").textContent = st.head;
   const upt = stats.miner && stats.miner.startedAt
@@ -138,6 +142,8 @@ function renderStats() {
     : (stats.statusLabel || "");
   $("subline").textContent = mining
     ? "Loteria de bloco: cada hash é um bilhete. " + upt
+    : blind
+    ? "O minerador está trabalhando, mas parou de informar os números. " + upt
     : (stats.statusLabel || "");
 
   // Alvo (node ou pool): cor E rótulo, nunca cor sozinha.
@@ -151,13 +157,25 @@ function renderStats() {
     : tgt.reachable === false ? "Sem resposta" : "verificando…";
 
   // KPIs
-  const [hv, hu] = fmtHash(mining ? cur.HS : 0);
-  $("kpiHash").textContent = stats.miner && stats.miner.running ? (mining ? hv : "0") : "—";
-  $("kpiHashUnit").textContent = stats.miner && stats.miner.running ? hu : "";
+  const running = !!(stats.miner && stats.miner.running);
+  const [hv, hu] = fmtHash(cur.HS);
   const note = $("kpiHashNote");
-  if (stats.miner && stats.miner.running && !mining) {
-    const [lv, lu] = fmtHash(cur.HS);
-    note.textContent = "produção parada · última leitura " + lv + " " + lu;
+  // O padrão é mostrar a medição; os ramos abaixo corrigem quando ela não vale.
+  $("kpiHash").textContent = running ? hv : "—";
+  $("kpiHashUnit").textContent = running ? hu : "";
+  if (running && blind) {
+    // Sem medição não é sem produção. Estampar "0" em vermelho aqui, com o
+    // minerador a 10,5 MH/s do outro lado, foi o bug de 29/09/2026: o painel
+    // inventou um número que ninguém mediu. Quando não se sabe, escreve-se
+    // que não se sabe.
+    $("kpiHash").textContent = "—";
+    $("kpiHashUnit").textContent = "";
+    note.textContent = "sem telemetria · última medição " + hv + " " + hu;
+    note.className = "n warn";
+  } else if (running && !mining) {
+    $("kpiHash").textContent = "0";
+    $("kpiHashUnit").textContent = "H/s";
+    note.textContent = "produção parada · última leitura " + hv + " " + hu;
     note.className = "n bad";
   } else {
     // Com o limite ativo o hashrate cai de proposito - dizer isso aqui evita que pareca defeito.
@@ -178,7 +196,9 @@ function renderStats() {
   $("kpiBlocksNote").textContent = stats.miner && stats.miner.restarts
     ? stats.miner.restarts + " reinício(s) do processo" : " ";
 
-  $("kpiOdds").textContent = oddsPerDay(cur.HS, net.difficulty);
+  // Em "blind" o HS é uma leitura velha: fazer a conta da chance em cima
+  // dele seria apresentar um resultado preciso sobre um dado que não vale.
+  $("kpiOdds").textContent = blind ? "—" : oddsPerDay(cur.HS, net.difficulty);
 
   // Pool: só existe em modo stratum. Em solo o miner não submete share
   // nenhuma — só blocos — então o card inteiro sai da tela.
@@ -225,6 +245,9 @@ function renderStats() {
     ["Frequência", cur.FREQ ? (Number(cur.FREQ) / 1e6).toFixed(2) + " GHz" : null],
     ["Algoritmo", cur.ALGO && !/^\d+$/.test(cur.ALGO) ? cur.ALGO : "sha256d"],
     ["Versão", cur.NAME ? (cur.NAME + " " + (cur.VER || "")).trim() : null],
+    // Só aparece quando aconteceu: o resgate é raro e vale ser visto.
+    ["Resgates automáticos", stats.miner && stats.miner.rescues
+      ? nf.format(stats.miner.rescues) : null],
   ]);
 
   $("brandSub").textContent = (cur.NAME || "cpuminer") + " · " +
@@ -247,6 +270,20 @@ function renderStats() {
     banner.textContent = (stats.solo ? "O node não está respondendo" :
       "A pool não está respondendo") + " — o miner segue tentando reconectar sozinho. " +
       (tgt.detail ? "Sondagem: " + tgt.detail + "." : "");
+    banner.className = "banner";
+  } else if (blind) {
+    // Um aviso só, cobrindo o painel inteiro: em "blind" TODOS os números
+    // vindos do cpuminer são a última medição — hashrate, temperatura,
+    // frequência. Dizer isso uma vez é mais honesto do que deixar cada
+    // card parecendo atual.
+    const desde = stats.miner && stats.miner.lastLogAt
+      ? " Última notícia dele há " +
+        fmtDuration(stats.serverTime - stats.miner.lastLogAt) + "."
+      : "";
+    banner.textContent = "O minerador está trabalhando, mas parou de " +
+      "responder no canal de estatísticas." + desde +
+      " Os números abaixo são a última medição, não o estado de agora. " +
+      "Se não voltar sozinho em alguns minutos, use “Reiniciar miner”.";
     banner.className = "banner";
   } else if (stats.networkError && !stats.network) {
     banner.textContent = "Sem dados da rede Bitcoin: " + stats.networkError;

@@ -27,6 +27,12 @@ POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "10"))
 PROBE_SECONDS = int(os.environ.get("PROBE_SECONDS", "30"))
 MAX_BODY = 64 * 1024          # teto do corpo do POST; config e minuscula
 
+# Resgate do miner - ver rescue_miner().
+API_DEAD_AFTER = 4            # leituras seguidas sem API (4 x POLL = 40 s)
+MINER_GRACE = 60              # carencia pro cpuminer abrir a porta da API
+LOG_QUIET_SECONDS = 300       # calado mais que isso nao e mais silencio normal
+RESCUE_COOLDOWN = 600         # no maximo um resgate a cada 10 min
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(HERE, "web")
 
@@ -34,6 +40,9 @@ _stop = threading.Event()
 _lock = threading.Lock()
 _current = {}
 _miner_error = "aguardando a primeira leitura"
+_api_fails = 0                # leituras seguidas em que a API nao respondeu
+_last_rescue = 0.0
+_rescues = 0
 _target = {"reachable": None, "detail": "sonda ainda nao rodou",
            "checkedAt": None, "lastOkAt": None, "label": None}
 
@@ -92,14 +101,59 @@ def poll_target():
         _stop.wait(PROBE_SECONDS)
 
 
+def rescue_miner(mstate, fails):
+    """Sobe outro cpuminer quando este parou de dar sinal de vida.
+
+    Em 29/09/2026 o OOM killer levou o cpuminer as 04:49 - ele tinha chegado
+    ao teto de 1 GiB do compose - e o painel passou nove horas dizendo
+    "rodando", com o hashrate congelado na ultima leitura. O supervisor nao
+    percebeu a morte, e a API do cpuminer, unica fonte de numeros do painel,
+    morreu junto com ele. Este e o cinto de seguranca por cima do supervisor.
+
+    Exigimos que DOIS sinais concordem, porque cada um sozinho mente:
+
+    * API muda pode ser susto - ela demora um instante pra abrir depois que
+      o processo sobe, e por isso tambem ha carencia;
+    * stdout calado pode ser o governador termico, que pausa as threads sem
+      imprimir nada quando passa de --max-temp.
+
+    Os dois juntos, passada a carencia, nao tem leitura inocente: nao esta
+    produzindo. Se esta morto ou so travado nao importa - o remedio e o
+    mesmo, entao nem tentamos distinguir.
+
+    O cooldown faz um defeito permanente virar um reinicio a cada 10 min em
+    vez de um laco de reinicios que impede a mineracao de acontecer.
+    """
+    global _last_rescue, _rescues
+    if fails < API_DEAD_AFTER:
+        return
+    now = time.time()
+    if now - (mstate.get("started_at") or 0) < MINER_GRACE:
+        return
+    last_log = mstate.get("last_log_at") or 0
+    quiet = now - last_log
+    if not last_log or quiet < LOG_QUIET_SECONDS:
+        return                   # ainda fala: minerando, so sem telemetria
+    with _lock:
+        if now - _last_rescue < RESCUE_COOLDOWN:
+            return
+        _last_rescue = now
+        _rescues += 1
+        numero = _rescues
+    print("resgate #%d: API muda ha %d leituras e stdout calado ha %d s; "
+          "subindo outro cpuminer" % (numero, fails, quiet), flush=True)
+    miner.apply_config()
+
+
 def poll_miner():
-    global _current, _miner_error
+    global _current, _miner_error, _api_fails
     while not _stop.is_set():
-        running = miner.state()["running"]
-        if not running:
+        mstate = miner.state()
+        if not mstate["running"]:
             with _lock:
                 _current = {}
                 _miner_error = None
+                _api_fails = 0
             history.add(None)            # parado: nao estavamos medindo
         else:
             try:
@@ -109,6 +163,7 @@ def poll_miner():
                 with _lock:
                     _current = fields
                     _miner_error = None
+                    _api_fails = 0
                 rate = float(fields.get("HS", 0) or 0)
                 with _lock:
                     unreachable = _target["reachable"] is False
@@ -116,8 +171,11 @@ def poll_miner():
             except Exception as exc:
                 with _lock:
                     _miner_error = "%s: %s" % (type(exc).__name__, exc)
+                    _api_fails += 1
+                    fails = _api_fails
                 # Vivo mas sem responder a API: ainda subindo, ou travado.
                 history.add(None)
+                rescue_miner(mstate, fails)
         _stop.wait(POLL_SECONDS)
 
 
@@ -134,11 +192,20 @@ def build_status():
         return "paused", "pausado"
     if not mstate["running"]:
         return "stopped", mstate["reason"] or "parado"
-    if err:
-        return "miner_down", "miner sem responder"
+    # Alvo fora vem ANTES da API muda: com o node caido o cpuminer continua
+    # falando (reclamando), e o stdout vivo faria "blind" parecer mineracao.
     if unreachable:
         alvo = "node" if cfg["mode"] == "solo" else "pool"
         return "target_down", "%s fora - nao esta minerando" % alvo
+    if err:
+        # A API pode morrer com o processo minerando muito bem: o stdout
+        # continua saindo. Chamar isso de "producao parada" e mentira - e foi
+        # exatamente o que o painel fez por nove horas em 29/09/2026, com o
+        # miner a 10,5 MH/s do outro lado. Sem medicao nao e sem producao.
+        last_log = mstate.get("last_log_at") or 0
+        if last_log and (time.time() - last_log) < LOG_QUIET_SECONDS:
+            return "blind", "minerando - sem telemetria"
+        return "miner_down", "miner sem responder"
     return "mining", "minerando (solo)" if cfg["mode"] == "solo" else "minerando"
 
 
@@ -150,6 +217,7 @@ def stats_payload():
         current = dict(_current)
         target = dict(_target)
         err = _miner_error
+        rescues = _rescues
     payload = {
         "status": status,
         "statusLabel": label,
@@ -164,6 +232,8 @@ def stats_payload():
             "startedAt": mstate["started_at"],
             "restarts": mstate["restarts"],
             "exitCode": mstate["exit_code"],
+            "lastLogAt": mstate["last_log_at"],
+            "rescues": rescues,
         },
         "log": mstate["log"],
         "serverTime": int(time.time()),
