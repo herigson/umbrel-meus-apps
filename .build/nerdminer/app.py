@@ -61,7 +61,7 @@ def load_assets():
         if ctype.startswith("text/") or ctype.endswith(("javascript", "json")):
             ctype += "; charset=utf-8"
         _assets["/" + name] = (body, ctype)
-    print("assets carregados: %s" % ", ".join(sorted(_assets)), flush=True)
+    miner.log("assets carregados: %s" % ", ".join(sorted(_assets)))
 
 
 def target_label(cfg):
@@ -140,8 +140,8 @@ def rescue_miner(mstate, fails):
         _last_rescue = now
         _rescues += 1
         numero = _rescues
-    print("resgate #%d: API muda ha %d leituras e stdout calado ha %d s; "
-          "subindo outro cpuminer" % (numero, fails, quiet), flush=True)
+    miner.log("resgate #%d: API muda ha %d leituras e stdout calado ha %d s; "
+              "subindo outro cpuminer" % (numero, fails, quiet))
     miner.apply_config()
 
 
@@ -234,6 +234,9 @@ def stats_payload():
             "exitCode": mstate["exit_code"],
             "lastLogAt": mstate["last_log_at"],
             "rescues": rescues,
+            "preventive": mstate["preventive"],
+            "rss": mstate["rss"],
+            "rssLimit": miner.MEM_RESTART_AT,
         },
         "log": mstate["log"],
         "serverTime": int(time.time()),
@@ -369,16 +372,16 @@ def drop_privileges():
             except OSError:
                 pass
     except OSError as exc:
-        print("aviso: nao consegui ajustar o dono de %s (%s)"
-              % (appconfig.CONFIG_DIR, exc), flush=True)
+        miner.log("aviso: nao consegui ajustar o dono de %s (%s)"
+                  % (appconfig.CONFIG_DIR, exc))
     try:
         os.setgroups([])
         os.setgid(gid)
         os.setuid(uid)
-        print("privilegios reduzidos para uid=%d gid=%d" % (uid, gid), flush=True)
+        miner.log("privilegios reduzidos para uid=%d gid=%d" % (uid, gid))
     except OSError as exc:
-        print("aviso: segui como root, nao consegui abaixar privilegios (%s)"
-              % exc, flush=True)
+        miner.log("aviso: segui como root, nao consegui abaixar privilegios "
+                  "(%s)" % exc)
 
 
 def main():
@@ -387,7 +390,7 @@ def main():
     appconfig.load()
 
     def handle_signal(signum, frame):
-        print("sinal %s: encerrando" % signum, flush=True)
+        miner.log("sinal %s: encerrando" % signum)
         _stop.set()
         miner.shutdown()
         os._exit(0)
@@ -403,7 +406,7 @@ def main():
 
     server = ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), Handler)
     server.daemon_threads = True     # nenhuma thread de request sobrevive
-    print("nerdminer na porta %d" % LISTEN_PORT, flush=True)
+    miner.log("nerdminer na porta %d" % LISTEN_PORT)
     server.serve_forever()
 
 

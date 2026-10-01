@@ -36,6 +36,10 @@ NODE_RPC_PASS = os.environ.get("APP_BITCOIN_RPC_PASS", "")
 CPUMINER = os.environ.get("CPUMINER_BIN", "/usr/local/bin/cpuminer")
 LOG_LINES = 200
 RESTART_DELAY = 5
+# Fracao do teto do container em que o cpuminer e reiniciado de proposito,
+# antes de encostar nele. Ver _mem_limit() e supervise().
+MEM_RESTART_FRACTION = float(os.environ.get("MEM_RESTART_FRACTION", "0.75"))
+MEM_LIMIT_FALLBACK = 1024 * 1024 * 1024
 # Periodo do ciclo de trabalho do throttle de CPU (ver throttle_forever).
 THROTTLE_PERIOD = 0.25
 
@@ -48,10 +52,62 @@ _log = deque(maxlen=LOG_LINES)
 # sob o GIL, entao nao precisa de lock.
 _last_log_at = 0.0
 _state = {"running": False, "reason": "ainda nao iniciado", "started_at": None,
-          "restarts": 0, "exit_code": None}
+          "restarts": 0, "exit_code": None, "preventive": 0, "rss": None}
 _cpu_percent = 100
 _stop = threading.Event()
 _wanted = threading.Event()   # setado = deve estar rodando
+
+
+def log(msg):
+    """Imprime com hora, no mesmo formato do cpuminer.
+
+    Sem isto as linhas do supervisor saem sem data enquanto as do minerador
+    saem com ela, e no "docker logs" as duas coisas nao podiam ser lidas na
+    mesma linha do tempo - foi o que atrapalhou o diagnostico de 30/09/2026.
+    """
+    print("[%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg), flush=True)
+
+
+def _mem_limit():
+    """Teto de memoria do container, lido do cgroup.
+
+    Esse teto vem do compose (deploy.resources.limits.memory). Lendo dele em
+    vez de repetir "1 GiB" aqui, o reinicio preventivo acompanha sozinho quem
+    mudar o compose - dois numeros magicos em arquivos diferentes divergem
+    cedo ou tarde.
+    """
+    for path in ("/sys/fs/cgroup/memory.max",                     # cgroup v2
+                 "/sys/fs/cgroup/memory/memory.limit_in_bytes"):  # cgroup v1
+        try:
+            with open(path) as handle:
+                raw = handle.read().strip()
+        except OSError:
+            continue
+        if raw == "max":          # v2 sem limite
+            continue
+        try:
+            value = int(raw)
+        except ValueError:
+            continue
+        # v1 sem limite devolve um numero gigante (PAGE_COUNTER_MAX), nao 0.
+        if 0 < value < (1 << 50):
+            return value
+    return MEM_LIMIT_FALLBACK
+
+
+MEM_RESTART_AT = int(_mem_limit() * MEM_RESTART_FRACTION)
+
+
+def _rss_bytes(pid):
+    """RSS do processo em bytes; None se nao der pra ler."""
+    try:
+        with open("/proc/%d/status" % pid) as handle:
+            for line in handle:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
 
 
 def build_args(cfg):
@@ -121,7 +177,7 @@ def _spawn(cfg):
     for i, item in enumerate(redacted):
         if i and redacted[i - 1] == "-p":
             redacted[i] = "***"
-    print("iniciando: %s" % " ".join(redacted), flush=True)
+    log("iniciando: %s" % " ".join(redacted))
 
     try:
         _proc = subprocess.Popen(
@@ -171,7 +227,7 @@ def _kill(timeout=10):
         # pra sempre. O finally garante o par coerente.
         pass
     finally:
-        _state.update(running=False, started_at=None)
+        _state.update(running=False, started_at=None, rss=None)
 
 
 def apply_config():
@@ -271,14 +327,46 @@ def supervise():
                         _state["restarts"] += 1
                         _state.update(running=False,
                                       reason="saiu com codigo %s; reiniciando" % code)
-                        print("cpuminer saiu com codigo %s; subindo outro"
-                              % code, flush=True)
+                        log("cpuminer saiu com codigo %s; subindo outro" % code)
+                    else:
+                        _check_memory(proc)
                 elif should_run and proc is None:
                     _spawn(appconfig.load())
         except Exception as exc:
-            print("supervisor: erro no ciclo (%s: %s); seguindo em frente"
-                  % (type(exc).__name__, exc), flush=True)
+            log("supervisor: erro no ciclo (%s: %s); seguindo em frente"
+                % (type(exc).__name__, exc))
         _stop.wait(RESTART_DELAY)
+
+
+def _check_memory(proc):
+    """Reinicia o cpuminer ANTES que ele encoste no teto. Com _lock adquirido.
+
+    O cpuminer vaza ~89 MiB/h no caminho getblocktemplate (work_copy() faz
+    memcpy sobre os ponteiros e strdup sem liberar o anterior). Com teto de
+    1 GiB isso da um ciclo de ~11h30, medido tres vezes seguidas em
+    29-30/09/2026 com menos de 20 min de variacao entre elas.
+
+    O que acontece ao encostar no teto NAO e morrer: o processo fica preso em
+    recuperacao de memoria, vivo e sem progredir - stdout mudo, API muda,
+    poll() respondendo "vivo" com toda a razao. Quem percebia era o resgate do
+    app.py, que exige 5 min de silencio pra ter certeza. Cinco minutos de tela
+    cega, tres vezes por dia.
+
+    Reiniciar a 75% do teto troca isso por ~5 segundos a cada ~8h30. O
+    trabalho perdido e irrelevante: em loteria solo cada hash e independente,
+    nao se acumula progresso que um reinicio jogue fora.
+    """
+    rss = _rss_bytes(proc.pid)
+    _state["rss"] = rss
+    if rss is None or rss < MEM_RESTART_AT:
+        return
+    mib = 1024 * 1024
+    log("reinicio preventivo: cpuminer em %d MiB, limiar %d MiB (teto do "
+        "container %d MiB) - vazamento do work_copy()"
+        % (rss // mib, MEM_RESTART_AT // mib, _mem_limit() // mib))
+    _kill()
+    _state["preventive"] += 1
+    _spawn(appconfig.load())
 
 
 def shutdown():

@@ -240,11 +240,28 @@ function renderStats() {
       limit ? (temp >= limit ? "no limite, pausando" : "abaixo do limite de " + limit + " °C")
             : (temp > 80 ? "alta" : temp >= 70 ? "atenção" : "normal"));
   }
+
+  // Memória com o limiar junto: o número sozinho não diz se está perto do
+  // reinício preventivo, e é justamente isso que interessa aqui.
+  const MIB = 1024 * 1024;
+  const rss = stats.miner && stats.miner.rss;
+  const rssLimit = stats.miner && stats.miner.rssLimit;
+  const mem = rss
+    ? Math.round(rss / MIB) + " MiB" +
+      (rssLimit ? " · reinicia em " + Math.round(rssLimit / MIB) + " MiB" : "")
+    : null;
+
   rows($("devRows"), [
     ["Temperatura", tempText],
     ["Frequência", cur.FREQ ? (Number(cur.FREQ) / 1e6).toFixed(2) + " GHz" : null],
     ["Algoritmo", cur.ALGO && !/^\d+$/.test(cur.ALGO) ? cur.ALGO : "sha256d"],
     ["Versão", cur.NAME ? (cur.NAME + " " + (cur.VER || "")).trim() : null],
+    // O cpuminer vaza memória no caminho getblocktemplate; o app o reinicia
+    // antes do teto. Mostrar a marcha dessa contagem evita que o reinício
+    // periódico pareça defeito quando aparecer no gráfico.
+    ["Memória do miner", mem],
+    ["Reinícios preventivos", stats.miner && stats.miner.preventive
+      ? nf.format(stats.miner.preventive) : null],
     // Só aparece quando aconteceu: o resgate é raro e vale ser visto.
     ["Resgates automáticos", stats.miner && stats.miner.rescues
       ? nf.format(stats.miner.rescues) : null],

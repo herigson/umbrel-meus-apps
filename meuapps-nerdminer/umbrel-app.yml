@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Mineracao solo de Bitcoin contra o seu proprio node, configuravel pela UI
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "27.4.0"
+version: "27.5.0"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
@@ -34,8 +34,44 @@ description: >-
   no docker-compose.yml, porque um container nao consegue alterar os proprios
   limites.
 releaseNotes: >-
-  Corrige o painel que dizia "producao parada" com o minerador trabalhando, e
-  o supervisor que nao percebia a morte do cpuminer.
+  O app passa a reiniciar o cpuminer ANTES de ele encostar no teto de
+  memoria, em vez de esperar travar.
+
+
+  A 2.4.0 pos um resgate automatico no ar e ele funcionou - tres vezes em
+  36h, com uma regularidade de relogio: 11h31, 11h37 e 11h17 entre um e
+  outro. Isso e exatamente 1 GiB dividido por ~89 MiB/h, a taxa do vazamento
+  do work_copy() no caminho getblocktemplate. Nao e evento raro: e ciclo.
+
+
+  E ao encostar no teto o cpuminer NAO morre - ele fica preso em recuperacao
+  de memoria, vivo e sem progredir. stdout mudo, API muda, e o poll() do
+  supervisor respondendo "vivo" com toda a razao. Por isso quem pegava era o
+  resgate, que exige 5 minutos de silencio pra ter certeza: cinco minutos de
+  tela cega, tres vezes por dia.
+
+
+  Agora o supervisor le o RSS do cpuminer em /proc a cada 5s e o reinicia ao
+  cruzar 75% do teto - ~5 segundos a cada ~8h30, em vez de ~5 minutos a cada
+  ~11h30. O limiar sai do proprio cgroup, entao acompanha sozinho quem mudar
+  o "memory:" no compose, sem numero magico repetido em dois arquivos. O
+  trabalho perdido e irrelevante: em loteria solo cada hash e independente, e
+  um reinicio nao joga progresso nenhum fora.
+
+
+  O resgate da 2.4.0 continua no lugar como ultima linha de defesa, pra
+  qualquer travamento que nao seja memoria.
+
+
+  O card Dispositivo passa a mostrar a memoria do miner com o limiar junto
+  ("412 MiB - reinicia em 768 MiB") e as contagens de reinicio preventivo e
+  de resgate. E as linhas de log do proprio app agora saem com data e hora,
+  no mesmo formato das do cpuminer - sem isso as duas coisas nao podiam ser
+  lidas na mesma linha do tempo, o que atrapalhou este diagnostico.
+
+
+  A 27.4.0 corrigiu o painel que dizia "producao parada" com o minerador
+  trabalhando, e o supervisor que nao percebia a morte do cpuminer.
 
 
   O que aconteceu em 29/09/2026: as 04:49 o cpuminer chegou ao teto de 1 GiB
