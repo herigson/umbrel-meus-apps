@@ -102,6 +102,17 @@ def build_conf(cfg):
         "",
     ]
 
+    lines += [
+        "# O painel pergunta a hora ao PROPRIO servidor em 127.0.0.1 pra ler",
+        "# o campo de precisao do pacote NTP - que nenhum relatorio do",
+        "# chronyc expoe - e, de quebra, provar que a 123/UDP esta mesmo",
+        "# respondendo. Sem este allow o chrony recusa ate a si mesmo, e o",
+        "# cartao 'Precisao' fica vazio. Vale sempre, inclusive com o",
+        "# atendimento a rede desligado: localhost nao e a rede.",
+        "allow 127.0.0.1",
+        "",
+    ]
+
     if cfg["serve"]:
         for net in cfg["allow_networks"]:
             lines.append("allow %s" % net)
@@ -222,6 +233,8 @@ def supervise():
     a decisao de subir por VERIFICACAO - e pra rodar e nao ha processo - e
     nao por um campo de estado que pode dessincronizar.
     """
+    global _proc
+
     while not _stop.is_set():
         try:
             with _lock:
@@ -263,16 +276,27 @@ def state():
 # 3. chronyc
 # --------------------------------------------------------------------------
 
-def query(command):
+def query(command, flags=("-N",)):
     """Roda 'chronyc -c <command>' e devolve a lista de linhas ja separadas.
 
     Levanta RuntimeError quando o chronyc falha - quem chama decide se isso
     vira erro na tela ou um campo vazio.
+
+    O -N pede os NOMES originais das fontes em vez dos enderecos resolvidos.
+    Sem ele o chronyc devolve "200.160.7.186" onde a config diz
+    "a.st1.ntp.br", e a tela de Fontes - que casa as duas listas pelo nome -
+    nunca encontra par, mostrando "aguardando primeira consulta" para sempre
+    com a fonte funcionando.
+
+    Em 'clients' o -N nao se aplica e o padrao faria DNS reverso em cada
+    endereco da LAN; como a maioria nao tem PTR, seriam varios timeouts
+    dentro do nosso limite de 5s. La vai -n, que e tambem o que interessa
+    ver: o IP do aparelho.
     """
     # Sem -h/-p: assim o chronyc usa o socket unix (/run/chrony/chronyd.sock),
     # que e o caminho privilegiado. Pela porta UDP, comandos como 'clients'
     # seriam recusados - e ela esta fechada de todo jeito (cmdport 0).
-    args = [CHRONYC, "-c"] + command.split()
+    args = [CHRONYC, "-c"] + list(flags) + command.split()
     try:
         done = subprocess.run(args, capture_output=True, timeout=QUERY_TIMEOUT)
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -384,7 +408,7 @@ def clients():
     roda como root.
     """
     out = []
-    for r in query("clients"):
+    for r in query("clients", flags=("-n",)):
         name = _txt(r, 0)
         if not name or name.lower() == "hostname":
             continue

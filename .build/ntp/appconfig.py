@@ -219,11 +219,27 @@ def save(patch):
     return dict(cfg)
 
 
+def timezones():
+    """Lista de fusos pro seletor da interface.
+
+    Sai do tzdata instalado no container, nao de uma lista escrita a mao:
+    uma lista fixa envelhece junto com as regras de horario de verao, e
+    poderia oferecer um fuso que o zoneinfo daqui nao conhece - entao a
+    validacao recusaria o que a propria tela ofereceu.
+    """
+    try:
+        import zoneinfo
+        return sorted(zoneinfo.available_timezones())
+    except Exception:
+        return [DEFAULTS["timezone"], "UTC"]
+
+
 def public():
     """O que a interface recebe. Hoje nao ha segredo nenhum na config - nao
     existe senha de pool aqui -, mas o acrescimo dos limites evita que o
     front-end repita numeros que o back-end ja conhece."""
     cfg = load()
+    cfg["timezones"] = timezones()
     cfg["limits"] = {
         "poll_range": [POLL_MIN, POLL_MAX],
         "min_sources_max": MIN_SOURCES_MAX,

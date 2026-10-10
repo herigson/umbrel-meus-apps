@@ -4,7 +4,7 @@ name: NerdMiner CPU (Loteria)
 tagline: Mineracao solo de Bitcoin contra o seu proprio node, configuravel pela UI
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/bitcoin/icon.svg
 category: Finances
-version: "27.5.0"
+version: "27.5.1"
 port: 4048
 description: >-
   Minerador de Bitcoin por CPU (cpuminer-opt) que minera SOLO contra o seu
@@ -34,7 +34,36 @@ description: >-
   no docker-compose.yml, porque um container nao consegue alterar os proprios
   limites.
 releaseNotes: >-
-  O app passa a reiniciar o cpuminer ANTES de ele encostar no teto de
+  CORRIGE A CAUSA REAL DAS NOVE HORAS PARADAS DE 29/09 - e eu tinha
+  diagnosticado errado.
+
+
+  A funcao supervise() atribui a _proc sem declarar "global _proc". Em
+  Python isso torna o nome LOCAL na funcao inteira, entao a leitura "proc =
+  _proc", logo na primeira linha do laco, estoura UnboundLocalError. O
+  supervisor NUNCA funcionou: antes da 2.4.0 ele morria calado na primeira
+  volta; da 2.4.0 em diante o try/except o mantinha vivo, mas registrando o
+  mesmo erro a cada 5 segundos sem nunca supervisionar nada.
+
+
+  Consequencias que isso explica: em 29/09 o OOM killer levou o cpuminer e
+  nada o reergueu por nove horas - quem acabou percebendo foi o resgate da
+  2.4.0, que vive em outra thread. E o reinicio preventivo por memoria da
+  2.5.0 estava MORTO desde que nasceu, porque e chamado de dentro do
+  supervise(), que estourava antes de chegar la.
+
+
+  O que eu escrevi antes - que a causa era o campo _state["running"]
+  dessincronizar de _proc - estava errado. Aquela mudanca melhorou o
+  codigo, mas nao era o defeito. A documentacao foi corrigida.
+
+
+  No CI entrou o pylint (E0601/E0602). O py_compile que ja rodava nao pegava
+  isso: e erro de execucao, nao de sintaxe. Com o novo guarda, o erro teria
+  sido barrado antes do primeiro build.
+
+
+  A 2.5.0 trouxe o reinicio preventivo: o cpuminer passa a ser reiniciado ANTES de encostar no teto de
   memoria, em vez de esperar travar.
 
 

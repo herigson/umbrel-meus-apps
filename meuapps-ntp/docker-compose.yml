@@ -13,7 +13,7 @@ services:
     # reinicia o vizinho sem o socket do Docker - que o Umbrel proibe. Com
     # os dois juntos, tudo se configura pela interface e o painel ainda
     # ganha acesso ao chronyc em 127.0.0.1.
-    image: ghcr.io/herigson/ntp:2.0.0
+    image: ghcr.io/herigson/ntp:2.0.1
     restart: unless-stopped
     ports:
       - "123:123/udp"

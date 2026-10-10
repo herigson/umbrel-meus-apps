@@ -313,6 +313,7 @@ def supervise():
       _state["running"]` nunca disparar. Agora a condicao e a verdade nua: e
       pra rodar e nao ha processo.
     """
+    global _proc
     while not _stop.is_set():
         try:
             with _lock:

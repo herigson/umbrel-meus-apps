@@ -4,7 +4,7 @@ name: Servidor NTP (chrony)
 tagline: Servidor de hora (NTP) para toda a rede local
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f550.svg
 category: Networking
-version: "2.0.0"
+version: "2.0.1"
 port: 8123
 description: >-
   Servidor NTP local usando chrony (imagem cturra/ntp). O Umbrel passa a
@@ -41,7 +41,41 @@ description: >-
   distribui a hora. O relogio e do host do Umbrel e quem o corrige e o
   servico de tempo dele.
 releaseNotes: >-
-  TUDO SE CONFIGURA PELO PROPRIO APP, e o painel foi refeito.
+  Corrige tres defeitos da 2.0.0, todos visiveis no primeiro uso.
+
+
+  O supervisor estourava "UnboundLocalError: _proc" a cada 5 segundos. A
+  funcao supervise() atribui a _proc sem declarar "global _proc", e em
+  Python isso torna o nome LOCAL na funcao inteira - entao a leitura logo
+  acima dele falhava. O chronyd subia na inicializacao e servia hora
+  normalmente, mas ninguem o teria reerguido se morresse. O mesmo defeito
+  estava no NerdMiner desde o primeiro dia (corrigido na 27.5.1).
+
+
+  A tela de Fontes dizia "aguardando primeira consulta" com as fontes
+  funcionando. O chronyc devolve o ENDERECO resolvido (200.160.7.186) e a
+  config guarda o NOME (a.st1.ntp.br); casando as duas listas pelo nome,
+  nunca havia par. Agora o chronyc e chamado com -N, que pede os nomes
+  originais. O painel tambem passa a mostrar o nome em vez do IP.
+
+
+  O cartao "Precisao" ficava vazio. O painel pergunta a hora ao proprio
+  servidor em 127.0.0.1 pra ler esse campo do pacote NTP, mas o
+  chrony.conf gerado so tinha "allow" para as redes configuradas - e
+  localhost nao estava em nenhuma, entao o servidor recusava a si mesmo.
+  Agora ha sempre "allow 127.0.0.1".
+
+
+  O fuso horario virou uma LISTA, em vez de campo de texto. As opcoes saem
+  do tzdata instalado no container, nao de uma lista escrita a mao que
+  envelheceria junto com as regras de horario de verao.
+
+
+  No CI entrou o pylint (E0601/E0602). O py_compile que ja rodava nao pegava
+  o erro do _proc: e erro de execucao, nao de sintaxe.
+
+
+  A 2.0.0 trouxe o resto: TUDO SE CONFIGURA PELO PROPRIO APP, e o painel foi refeito.
 
 
   Ate agora o app eram dois containers: o chrony e o painel. A configuracao

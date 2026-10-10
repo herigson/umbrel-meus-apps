@@ -255,6 +255,14 @@ function renderPainel() {
   }
 }
 
+const STATE_RANK = { sync: 0, ok: 1, excluded: 2, unstable: 3,
+                     falseticker: 4, unreachable: 5 };
+
+function stateRank(state) {
+  const r = STATE_RANK[state];
+  return r === undefined ? 9 : r;
+}
+
 function pollLabel(exp) {
   for (const [value, label] of POLLS) if (value === exp) return label;
   return Math.pow(2, exp) + " s";
@@ -296,8 +304,15 @@ function renderFontes() {
   const servers = draft.servers;
   if (selected >= servers.length) selected = Math.max(0, servers.length - 1);
 
+  // Uma linha de "pool" vira VÁRIAS fontes no chrony, todas com o mesmo
+  // nome. Casar pelo nome pegaria uma qualquer — e mostrar "sem resposta"
+  // porque um dos servidores do pool caiu, enquanto outros respondem, seria
+  // enganoso. Fica a de melhor estado.
   const live = {};
-  for (const s of (stats && stats.sources) || []) live[s.name] = s;
+  for (const s of (stats && stats.sources) || []) {
+    const cur = live[s.name];
+    if (!cur || stateRank(s.state) < stateRank(cur.state)) live[s.name] = s;
+  }
 
   const host = $("srcRows");
   host.innerHTML = "";
@@ -535,6 +550,31 @@ function renderHistorico() {
 
 /* ---------- ajustes ---------- */
 
+let tzFilled = false;
+
+function fillTimezones() {
+  const sel = $("tzSelect");
+  const list = (config && config.timezones) || [];
+  if (tzFilled || !list.length) return;
+  sel.innerHTML = "";
+  for (const tz of list) {
+    const o = document.createElement("option");
+    o.value = tz;
+    o.textContent = tz;
+    sel.appendChild(o);
+  }
+  // Se o fuso gravado não estiver na lista (tzdata trocado por baixo, por
+  // exemplo), acrescentá-lo evita que o <select> caia silenciosamente no
+  // primeiro item e "mude" uma configuração que ninguém pediu para mudar.
+  if (draft && list.indexOf(draft.timezone) < 0) {
+    const o = document.createElement("option");
+    o.value = draft.timezone;
+    o.textContent = draft.timezone + " (não reconhecido)";
+    sel.insertBefore(o, sel.firstChild);
+  }
+  tzFilled = true;
+}
+
 function renderAjustes() {
   if (!draft) return;
   setSwitch("swServe", draft.serve);
@@ -543,9 +583,8 @@ function renderAjustes() {
   if (document.activeElement !== $("allowInput")) {
     $("allowInput").value = draft.allow_networks.join(", ");
   }
-  if (document.activeElement !== $("tzInput")) {
-    $("tzInput").value = draft.timezone;
-  }
+  fillTimezones();
+  $("tzSelect").value = draft.timezone;
 
   renderSeg($("segPoll"), POLLS, draft.poll_exponent, function (v) {
     draft.poll_exponent = v; renderAjustes(); syncApplyButtons();
@@ -679,8 +718,8 @@ function bind() {
     readAllowInput(); setText("allowValue", draft.allow_networks.join(", ") || "nenhuma");
     syncApplyButtons();
   });
-  $("tzInput").addEventListener("input", function () {
-    draft.timezone = $("tzInput").value.trim(); syncApplyButtons();
+  $("tzSelect").addEventListener("change", function () {
+    draft.timezone = $("tzSelect").value; syncApplyButtons();
   });
   $("btnMinus").addEventListener("click", function () {
     draft.min_sources = Math.max(1, draft.min_sources - 1); renderAjustes();

@@ -63,6 +63,19 @@ jobs:
             python3 -m py_compile "$f"
           done
 
+      - name: Checar erros de nome (pylint)
+        run: |
+          # py_compile NAO pega UnboundLocalError: e erro de EXECUCAO, nao de
+          # sintaxe. Um "global _proc" esquecido no supervise() passou por
+          # aqui e so apareceu em 10/10/2026 - no NerdMiner ele estava la
+          # desde o primeiro dia, sem ninguem notar, porque o supervisor so
+          # executa aquele trecho quando o processo filho morre.
+          #
+          # E0601 = variavel usada antes de atribuir (exatamente esse caso)
+          # E0602 = nome indefinido
+          pip install --quiet pylint
+          pylint --disable=all --enable=E0601,E0602 .build/nerdminer/*.py
+
       - name: Checar sintaxe do JavaScript
         run: |
           for f in .build/nerdminer/web/*.js; do
