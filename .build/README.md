@@ -37,11 +37,56 @@ o upstream mudar a linha, em vez de aplicar um patch silenciosamente vazio.
 temperatura — fica no `docker-compose.yml`, porque um container não altera os
 próprios limites. A UI controla threads e scantime, que operam dentro dele.
 
-## ntp-ui
+## ntp (ativa)
 
-Painel web do `meuapps-ntp`. Mostra o desvio do relógio, stratum, fonte de
-referência, último sync e a qualidade da sincronização, com gráfico histórico.
-Python puro (stdlib), sem dependências.
+Container único do `meuapps-ntp`: **chronyd + painel web + supervisor**.
+Substituiu `ntp-ui` + a imagem `cturra/ntp`, que ficam aqui só como caminho
+de rollback.
+
+**Por que um container só:** a configuração do chrony vinha de variável de
+ambiente e o `/etc/chrony` era um **tmpfs** recriado a cada arranque. Mudar
+qualquer ajuste significava editar o `docker-compose.yml` e recriar o
+container — e um container não reinicia o vizinho sem o socket do Docker, que
+o Umbrel proíbe. Com os dois juntos, a UI configura de verdade e o
+`config.json` vive em `${APP_DATA_DIR}`, sobrevivendo aos updates.
+
+**O ganho que veio junto:** com o chronyd local, o painel passou a falar
+`chronyc` pelo **socket unix** do daemon e usa os números que ele calcula,
+em vez de estimá-los por fora:
+
+| Comando | O que entrega |
+|---|---|
+| `tracking` | stratum, offset, RMS, frequência, skew, root delay/dispersion |
+| `sources` + `sourcestats` | estado, alcance, desvio e jitter **por fonte** |
+| `clients` | **quem na rede está pedindo hora** — não havia como saber antes |
+| `serverstats` | pacotes servidos e descartados |
+
+**Por que o painel roda como root**, diferente do NerdMiner: a 123/UDP é
+privilegiada e precisa ser reaberta a cada "Aplicar", então quem sobe o
+chronyd não pode ter largado o privilégio antes. O processo exposto à rede
+continua sem privilégio — o chronyd cai para `_chrony` sozinho, pela diretiva
+`user` do conf gerado. De quebra, `chronyc clients` exige o socket unix do
+daemon, que só root e o grupo `_chrony` abrem.
+
+> ℹ️ **`chronyd -x` continua valendo:** o daemon mede o desvio e serve a hora,
+> mas **nunca ajusta o relógio** da máquina. O relógio é do host do Umbrel e
+> quem o corrige é o serviço de tempo dele; dois serviços disciplinando o
+> mesmo relógio brigariam. Por isso não há `makestep` no conf gerado nem
+> `cap_add: SYS_TIME` no compose — e por isso o controle "Corrigir saltos
+> grandes" que havia no design **não foi implementado**: seria um interruptor
+> desligado de fábrica.
+
+**Leitura defensiva do `chronyc`:** usamos `chronyc -c`, que devolve CSV em
+vez do texto alinhado para humano. Mas a ordem e a quantidade de colunas
+mudam entre versões do chrony, então toda leitura passa por `_num`/`_txt`,
+que devolvem um padrão quando a coluna não existe — um campo novo no upstream
+não pode derrubar o painel inteiro com `IndexError`.
+
+## ntp-ui (SUPERSEDIDA pela `ntp`)
+
+Painel web do `meuapps-ntp` enquanto o app eram dois containers. Mostra o
+desvio do relógio, stratum, fonte de referência, último sync e a qualidade da
+sincronização, com gráfico histórico. Python puro (stdlib), sem dependências.
 
 **Por que fala o protocolo NTP em vez de usar `chronyc`:** o `startup.sh` da
 imagem `cturra/ntp` não escreve `cmdallow`/`bindcmdaddress` na config, então a

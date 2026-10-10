@@ -3,46 +3,35 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: meuapps-ntp_ui_1
+      APP_HOST: meuapps-ntp_server_1
       APP_PORT: 8080
 
   server:
-    image: cturra/ntp:latest
+    # chronyd + painel na mesma imagem (ver .build/ntp). Eram dois
+    # containers ate a 2.0.0: o painel nao conseguia reescrever a
+    # configuracao do chrony nem reinicia-lo, porque um container nao
+    # reinicia o vizinho sem o socket do Docker - que o Umbrel proibe. Com
+    # os dois juntos, tudo se configura pela interface e o painel ainda
+    # ganha acesso ao chronyc em 127.0.0.1.
+    image: ghcr.io/herigson/ntp:2.0.0
     restart: unless-stopped
     ports:
       - "123:123/udp"
+    volumes:
+      # config.json mora aqui e sobrevive aos updates. Antes a configuracao
+      # vinha de variavel de ambiente e o /etc/chrony era um tmpfs: qualquer
+      # ajuste exigia editar este arquivo e recriar o container.
+      - ${APP_DATA_DIR}/data:/data
     environment:
-      # Upstream: NTP.br (oficiais brasileiros) + Cloudflare como reserva.
-      NTP_SERVERS: "a.st1.ntp.br,b.st1.ntp.br,time.cloudflare.com"
-    tmpfs:
-      - /etc/chrony:rw,mode=1750
-      - /run/chrony:rw,mode=1750
-    # Sem cap_add SYS_TIME de proposito: o startup.sh da imagem roda
-    # "chronyd -x", que explicitamente NAO ajusta o relogio do sistema. A
-    # capability nao teria efeito nenhum - o container serve a hora do host
-    # e mede o desvio pra reportar.
-
-  ui:
-    # Painel web (ver .build/ntp-ui). Fala o proprio protocolo NTP: o chrony
-    # desta imagem nao expoe a porta de comando (323) fora do localhost,
-    # entao chronyc remoto nao e opcao.
-    image: ghcr.io/herigson/ntp-ui:1.1.0
-    restart: unless-stopped
-    depends_on:
-      - server
-    environment:
-      # Nome COMPLETO do container (o nome curto do servico nao resolve na
-      # rede do Umbrel); a lista e testada em ordem.
-      NTP_HOST: "meuapps-ntp_server_1,server,meuapps-ntp-server-1"
-      # Fontes usadas pra medir o desvio do nosso relogio. Comparar com o
-      # servidor local daria sempre zero: mesmo relogio do host.
-      REFERENCE_SERVERS: "a.st1.ntp.br,b.st1.ntp.br"
-      # Fuso do relogio exibido (so apresentacao; o NTP trafega UTC).
-      TZ: "America/Sao_Paulo"
-      LOCAL_POLL_SECONDS: "20"
-      REFERENCE_POLL_SECONDS: "120"
-      HISTORY_POINTS: "360"
+      LISTEN_PORT: "8080"
+      POLL_SECONDS: "15"
+      CLIENTS_TTL: "30"
+    # Sem cap_add SYS_TIME de proposito: o chronyd roda com "-x", que
+    # explicitamente NAO ajusta o relogio. O relogio e do host do Umbrel e
+    # quem o corrige e o timesyncd dele; dois servicos disciplinando o mesmo
+    # relogio brigariam. Este servidor mede o desvio e serve a hora.
     deploy:
       resources:
         limits:
           cpus: "0.25"
+          memory: 256M

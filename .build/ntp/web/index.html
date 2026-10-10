@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Servidor NTP</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<div class="shell">
+
+  <aside class="side">
+    <div class="brand">
+      <div class="mark">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5" stroke="#1E1E1E" stroke-width="2.2" fill="none"/>
+          <path d="M12 7.5V12l3 2" stroke="#1E1E1E" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">Servidor NTP</span>
+        <span class="brand-sub" id="brandSub">—</span>
+      </div>
+    </div>
+
+    <nav aria-label="Seções">
+      <a href="#/painel" class="nav-item" data-route="painel">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#FF8A3D" stroke-width="1.8" stroke-linecap="round">
+          <path d="M4 13a8 8 0 0116 0"/><path d="M12 13l4-4"/><path d="M4 18h16"/>
+        </svg>Painel
+      </a>
+      <a href="#/fontes" class="nav-item" data-route="fontes">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#FF8A3D" stroke-width="1.8">
+          <rect x="3.5" y="4" width="17" height="6.5" rx="2"/><rect x="3.5" y="13.5" width="17" height="6.5" rx="2"/>
+          <path d="M7 7.25h.5M7 16.75h.5" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>Fontes
+      </a>
+      <a href="#/historico" class="nav-item" data-route="historico">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#FF8A3D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17l5-6 4 3 8-9"/><path d="M3 21h18"/>
+        </svg>Histórico
+      </a>
+      <a href="#/ajustes" class="nav-item" data-route="ajustes">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#FF8A3D" stroke-width="1.8" stroke-linecap="round">
+          <path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>
+        </svg>Ajustes
+      </a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <div class="msg bad" id="banner" hidden role="status"></div>
+
+    <!-- ================== PAINEL ================== -->
+    <section class="page" id="view-painel">
+      <header class="page-head">
+        <div class="head-text">
+          <h1>Painel</h1>
+          <span class="sub" id="updatedAt">&nbsp;</span>
+        </div>
+        <span class="pill idle" id="statusPill"><span class="dot"></span><span id="statusText">verificando…</span></span>
+      </header>
+
+      <div class="cards">
+        <div class="card clock-card">
+          <div class="clock-time mono" id="clockTime">--:--:--</div>
+          <div class="clock-date" id="clockDate">&nbsp;</div>
+          <div class="clock-zone" id="clockZone">&nbsp;</div>
+          <div class="clock-ref" id="clockRef">&nbsp;</div>
+        </div>
+
+        <a href="#/historico" class="card offset-card">
+          <div class="card-head">
+            <span class="k">Desvio do relógio</span>
+            <span class="card-link">Histórico
+              <svg width="7" height="12" viewBox="0 0 8 13" aria-hidden="true"><path d="M1.5 1.5l5 5-5 5" stroke="#FF8A3D" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <div class="offset-value">
+            <span class="v mono" id="offsetValue">—</span>
+            <span class="u" id="offsetUnit"></span>
+            <span class="note" id="offsetNote"></span>
+          </div>
+          <svg id="miniChart" width="100%" height="150" viewBox="0 0 600 150" preserveAspectRatio="none" role="img" aria-label="Desvio do relógio ao longo do tempo"></svg>
+          <div class="axis" id="miniAxis"></div>
+        </a>
+      </div>
+
+      <div class="tiles" id="tiles"></div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Fontes de referência</h2>
+          <a href="#/fontes">Gerenciar</a>
+        </div>
+        <div class="group round-md" id="sourceList"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <h2>Quem está usando</h2>
+          <span class="sub" id="clientsCount"></span>
+        </div>
+        <div class="group round-md" id="clientList"></div>
+        <span class="group-note">Dispositivos que pediram hora a este servidor desde que ele subiu. É a única prova de que o roteador e os demais aparelhos trocaram mesmo de fonte.</span>
+      </div>
+    </section>
+
+    <!-- ================== FONTES ================== -->
+    <section class="page" id="view-fontes" hidden>
+      <header class="page-head">
+        <div class="head-text">
+          <h1>Fontes</h1>
+          <span class="sub">Servidores externos que o chrony consulta para acertar a hora.</span>
+        </div>
+        <a href="#/fontes/add" class="btn-add">
+          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar fonte
+        </a>
+      </header>
+
+      <div class="split">
+        <div class="col-list">
+          <span class="group-label">Servidores configurados</span>
+          <div class="group" id="srcRows"></div>
+          <span class="group-note" id="srcActiveNote"></span>
+        </div>
+
+        <div class="col-detail" aria-label="Detalhes da fonte">
+          <div class="group" id="srcDetail"></div>
+
+          <div class="field">
+            <span class="lbl">Opções desta fonte</span>
+            <div class="group" id="srcOptions"></div>
+          </div>
+
+          <div class="field">
+            <span class="lbl">Intervalo de consulta</span>
+            <div class="group">
+              <div class="row wrap">
+                <span class="label">Vale para todas as fontes</span>
+                <div class="seg" id="segPollFontes" role="group" aria-label="Intervalo de consulta"></div>
+              </div>
+            </div>
+            <span class="group-note">O chrony conta este intervalo em potências de 2 segundos — por isso os valores são 1, 2, 4 e 17 min, e não números redondos.</span>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn" id="btnApplyFontes">Aplicar e reiniciar chrony</button>
+            <span class="hint">O serviço fica alguns segundos sem responder durante o reinício.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================== ADICIONAR FONTE ================== -->
+    <section class="page page-narrow" id="view-add" hidden>
+      <header class="page-head">
+        <div class="head-text">
+          <a class="back" href="#/fontes">← Voltar às fontes</a>
+          <h1>Adicionar fonte</h1>
+        </div>
+        <button type="button" class="btn-add" id="btnAddConfirm" disabled>Adicionar</button>
+      </header>
+
+      <div class="field">
+        <label for="addHost">Endereço</label>
+        <div class="input-row">
+          <input id="addHost" type="text" placeholder="ex.: a.st1.ntp.br ou 200.160.7.186" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn ghost" id="btnTest">Testar</button>
+        </div>
+        <div class="msg" id="addResult" hidden></div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Tipo</span>
+        <div class="seg" id="segKind" role="group" aria-label="Tipo de fonte"></div>
+        <span class="group-note">Pool resolve o nome em vários servidores e troca os que falharem.</span>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Opções</span>
+        <div class="group" id="addOptions"></div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Sugestões</span>
+        <div class="group suggestions" id="suggestions"></div>
+        <span class="group-note">Servidores próximos têm menor atraso. Os do NTP.br ficam em São Paulo.</span>
+      </div>
+    </section>
+
+    <!-- ================== HISTÓRICO ================== -->
+    <section class="page" id="view-historico" hidden>
+      <header class="page-head">
+        <div class="head-text">
+          <h1>Histórico</h1>
+          <span class="sub">Desvio do relógio local medido contra a fonte de referência.</span>
+        </div>
+        <div class="seg" id="segRange" role="group" aria-label="Período"></div>
+      </header>
+
+      <div class="card" style="padding: 18px 20px 14px">
+        <div class="offset-value">
+          <span class="k" id="rangeName" style="font-size:13px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px"></span>
+          <span class="v mono" id="histNow" style="margin-left:auto">—</span>
+          <span class="u" id="histNowUnit"></span>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-scale" id="histScale"></div>
+          <svg id="histChart" height="220" viewBox="0 0 600 220" preserveAspectRatio="none" role="img" aria-label="Gráfico do desvio no período selecionado"></svg>
+        </div>
+        <div class="axis" id="histAxis"></div>
+        <p class="chart-note" id="histNote">&nbsp;</p>
+      </div>
+
+      <div class="tiles" id="histStats"></div>
+
+      <div class="card" style="padding: 18px 20px 14px">
+        <div class="card-head">
+          <span class="k">Ida e volta até a referência</span>
+          <span class="card-link" id="rttMean"></span>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-scale" id="rttScale"></div>
+          <svg id="rttChart" height="120" viewBox="0 0 600 120" preserveAspectRatio="none" role="img" aria-label="Tempo de ida e volta no período"></svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================== AJUSTES ================== -->
+    <section class="page page-narrow" id="view-ajustes" hidden>
+      <header class="page-head">
+        <div class="head-text">
+          <h1>Ajustes</h1>
+          <span class="sub">Como o servidor atende a rede e como o chrony se sincroniza.</span>
+        </div>
+      </header>
+
+      <div class="msg bad" id="saveError" hidden role="alert"></div>
+
+      <div class="field">
+        <span class="lbl">Serviço</span>
+        <div class="group">
+          <div class="row">
+            <span class="label">Servir hora na rede local</span>
+            <button type="button" class="switch" id="swServe" role="switch" aria-checked="false" aria-label="Servir hora na rede local"><span class="knob"></span></button>
+          </div>
+          <div class="row">
+            <span class="label">Redes permitidas</span>
+            <span class="value" id="allowValue">—</span>
+          </div>
+          <div class="row wrap">
+            <input id="allowInput" type="text" placeholder="192.168.0.0/16, 10.0.0.0/8" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="row">
+            <span class="label">Porta</span>
+            <span class="value">123/UDP</span>
+          </div>
+        </div>
+        <span class="group-note">Dispositivos dessas redes podem usar este servidor como fonte de hora. Separe várias com vírgula.</span>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Sincronização</span>
+        <div class="group">
+          <div class="row wrap">
+            <span class="label">Intervalo de consulta</span>
+            <div class="seg" id="segPoll" role="group" aria-label="Intervalo de consulta"></div>
+          </div>
+          <div class="row">
+            <span class="stack">
+              <span class="t">Fontes mínimas</span>
+              <span class="d" id="minSourcesHint"></span>
+            </span>
+            <span class="step-value mono" id="minSourcesValue">1</span>
+            <div class="stepper">
+              <button type="button" id="btnMinus" aria-label="Diminuir">−</button>
+              <button type="button" id="btnPlus" aria-label="Aumentar">+</button>
+            </div>
+          </div>
+        </div>
+        <span class="group-note">Com 3 ou mais fontes ativas o chrony consegue descartar um servidor com a hora errada.</span>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Relógio da máquina</span>
+        <div class="group">
+          <div class="row">
+            <span class="stack">
+              <span class="t">Este servidor não acerta o relógio do Umbrel</span>
+              <span class="d">O chronyd roda com <code>-x</code>: mede o desvio e distribui a hora, mas nunca mexe no relógio do sistema — quem faz isso é o próprio umbrelOS. Dois serviços corrigindo o mesmo relógio brigariam entre si.</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Painel</span>
+        <div class="group">
+          <div class="row wrap">
+            <span class="label">Fuso horário</span>
+            <input id="tzInput" type="text" placeholder="America/Sao_Paulo" autocomplete="off" spellcheck="false" style="flex:0 1 260px;min-height:40px;font-size:15px">
+          </div>
+          <div class="row">
+            <span class="label">Atualizar automaticamente</span>
+            <button type="button" class="switch" id="swAuto" role="switch" aria-checked="false" aria-label="Atualizar automaticamente"><span class="knob"></span></button>
+          </div>
+        </div>
+        <span class="group-note">O fuso é só apresentação: o NTP sempre trafega em UTC.</span>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Sobre</span>
+        <div class="group" id="aboutRows"></div>
+      </div>
+
+      <div class="actions">
+        <div class="actions-row">
+          <button type="button" class="btn ghost" id="btnDiscard" disabled>Descartar</button>
+          <button type="button" class="btn" id="btnApply" disabled>Aplicar e reiniciar chrony</button>
+        </div>
+        <span class="hint">O serviço fica alguns segundos sem responder durante o reinício.</span>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="overlay-box">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="overlayText">Aplicando…</p>
+  </div>
+</div>
+
+<script src="chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

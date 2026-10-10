@@ -4,7 +4,7 @@ name: Servidor NTP (chrony)
 tagline: Servidor de hora (NTP) para toda a rede local
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f550.svg
 category: Networking
-version: "1.2.0"
+version: "2.0.0"
 port: 8123
 description: >-
   Servidor NTP local usando chrony (imagem cturra/ntp). O Umbrel passa a
@@ -23,11 +23,69 @@ description: >-
   comandos prontos pra MikroTik, Windows e Linux.
 
 
-  O botao Open abre um painel com a hora servida e o fuso configurado, o
-  desvio do relogio medido contra as fontes publicas, historico em grafico,
-  stratum, fonte de referencia, ultimo sync e a qualidade da sincronizacao.
+  TUDO SE CONFIGURA PELO PROPRIO APP. Abra o painel e va em Fontes ou
+  Ajustes: adicionar e remover servidores, testar um endereco antes de
+  salvar, escolher as redes que podem consultar, o intervalo de consulta e
+  as fontes minimas. Nao e preciso editar docker-compose.yml, e a
+  configuracao fica em ${APP_DATA_DIR}, sobrevivendo aos updates.
+
+
+  O painel mostra a hora servida com o segundo correndo, o desvio do
+  relogio com historico de 1h a 7 dias, stratum, erro estimado, atraso ate
+  a origem, o estado de cada fonte - e QUEM NA REDE esta pedindo hora, que
+  e a unica forma de confirmar que os aparelhos realmente trocaram de
+  servidor.
+
+
+  Este servidor nao acerta o relogio da maquina: ele mede o desvio e
+  distribui a hora. O relogio e do host do Umbrel e quem o corrige e o
+  servico de tempo dele.
 releaseNotes: >-
-  Painel ganha o relogio: hora servida em destaque (com o segundo correndo),
+  TUDO SE CONFIGURA PELO PROPRIO APP, e o painel foi refeito.
+
+
+  Ate agora o app eram dois containers: o chrony e o painel. A configuracao
+  do chrony vinha de variavel de ambiente e o /etc/chrony era um tmpfs
+  recriado a cada arranque - mudar qualquer ajuste exigia editar o
+  docker-compose.yml na mao e recriar o container. O painel nao tinha como
+  fazer isso: um container nao reinicia o vizinho sem o socket do Docker,
+  que o Umbrel proibe.
+
+
+  Agora e um container so (chronyd + painel + supervisor) e a configuracao
+  vive em ${APP_DATA_DIR}/config.json, sobrevivendo aos updates. Da pra
+  ligar e desligar o atendimento a rede, escolher as redes permitidas,
+  adicionar e remover fontes (com teste de resposta antes de salvar),
+  marcar fonte preferida, iburst e NTS por fonte, mudar o intervalo de
+  consulta, as fontes minimas e o fuso do painel - tudo pela interface.
+
+
+  O GANHO ESCONDIDO: com o chronyd no mesmo container, o painel passou a
+  falar chronyc em 127.0.0.1 e mostra os numeros que o proprio chrony
+  calcula, em vez de estimar por fora com NTP cru. Isso trouxe uma tela que
+  nao existia - QUEM NA REDE ESTA PEDINDO HORA. E a unica forma de confirmar
+  que o roteador, as cameras e os PCs realmente trocaram de servidor.
+
+
+  Painel novo em cinco telas, com o visual refeito: Painel (relogio, desvio,
+  stratum, erro estimado, atraso, fontes e clientes), Fontes (lista, detalhe
+  e opcoes por fonte), Adicionar fonte (com sugestoes e botao Testar),
+  Historico (1h / 12h / 24h / 7 dias, com desvio e ida-e-volta) e Ajustes.
+
+
+  O intervalo de consulta aparece como 1, 2, 4 e 17 min porque o chrony
+  conta em potencias de 2 segundos: sao 2^6, 2^7, 2^8 e 2^10. Os rotulos
+  caem exatos na escala dele, sem arredondamento.
+
+
+  O QUE NAO ENTROU, e por que: um controle de "corrigir saltos grandes"
+  (makestep). O chronyd roda com -x, que desliga o ajuste de relogio de
+  proposito - o relogio e do host do Umbrel e quem o corrige e o servico de
+  tempo dele. Esse botao seria um interruptor desligado de fabrica. No lugar
+  dele, Ajustes traz uma linha explicando de quem e o relogio.
+
+
+  Versao anterior (1.2.0): painel ganhou o relogio - hora servida em destaque (com o segundo correndo),
   data por extenso e o fuso configurado, com a sigla e o deslocamento em
   relacao ao UTC. A hora exibida e a do SERVIDOR - o painel calcula a
   diferenca pro relogio do navegador, entao continua correta mesmo num

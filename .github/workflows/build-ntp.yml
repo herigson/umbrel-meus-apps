@@ -1,0 +1,148 @@
+name: build ntp
+
+# Publica ghcr.io/<owner>/ntp - chronyd + painel na mesma imagem.
+# Substitui o build-ntp-ui.yml: a partir da 2.0.0 o app e um container so,
+# porque o painel precisa reescrever o chrony.conf e reiniciar o daemon -
+# coisa que um container nao faz no vizinho sem o socket do Docker.
+#
+# As checagens vem ANTES do build. Compilar a imagem leva minutos; um erro de
+# sintaxe que custa um segundo pra detectar nao deve esperar por isso.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.build/ntp/**'
+      - '.github/workflows/build-ntp.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da imagem. Vazio = usa o arquivo .build/ntp/VERSION'
+        required: false
+        default: ''
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/ntp
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Definir tag
+        id: ver
+        run: |
+          # Sem input (caso do push automatico) a versao vem do VERSION,
+          # senao todo push republicaria a mesma tag.
+          T="${{ github.event.inputs.tag }}"
+          [ -z "$T" ] && T="$(tr -d ' \n\r' < .build/ntp/VERSION)"
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+          echo "publicando tag: $T"
+
+      - name: Sintaxe do Python
+        run: |
+          cd .build/ntp
+          python3 -m py_compile app.py appconfig.py chronyd.py history.py ntpclient.py
+
+      - name: Sintaxe do JavaScript
+        run: |
+          cd .build/ntp/web
+          for f in *.js; do node --check "$f"; echo "ok: $f"; done
+
+      - name: Colisao de simbolos globais entre os scripts
+        run: |
+          # Scripts classicos dividem UM escopo global: um "const" repetido
+          # entre dois arquivos e SyntaxError e mata o segundo inteiro. O
+          # "node --check" por arquivo NAO ve isso - ja passou despercebido
+          # uma vez no painel do NerdMiner, com a pagina abrindo e nenhum
+          # dado carregando.
+          cd .build/ntp/web
+          node -e '
+            const fs = require("fs");
+            const seen = new Map(); let bad = 0;
+            for (const f of ["chart.js", "app.js"]) {
+              const re = /^(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm;
+              const src = fs.readFileSync(f, "utf8");
+              const here = new Set(); let m;
+              while ((m = re.exec(src))) here.add(m[1]);
+              for (const n of here) {
+                if (seen.has(n)) { console.log("COLISAO:", n, "em", seen.get(n), "e", f); bad = 1; }
+                else seen.set(n, f);
+              }
+            }
+            process.exit(bad);
+          '
+          echo "sem colisoes"
+
+      - name: Todo $("id") existe no index.html
+        run: |
+          # Um id digitado errado so apareceria como um campo vazio na tela,
+          # ou um TypeError no console que ninguem abre.
+          cd .build/ntp/web
+          node -e '
+            const fs = require("fs");
+            const html = fs.readFileSync("index.html", "utf8");
+            const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+            let bad = 0;
+            for (const f of ["app.js", "chart.js"]) {
+              for (const m of fs.readFileSync(f, "utf8").matchAll(/\$\("([^"]+)"\)/g)) {
+                if (!ids.has(m[1])) { console.log("ID AUSENTE:", m[1], "em", f); bad = 1; }
+              }
+            }
+            process.exit(bad);
+          '
+          echo "todos os ids existem"
+
+      - name: Sanidade do HTML e do CSS
+        run: |
+          cd .build/ntp/web
+          # Todo arquivo referenciado pelo HTML precisa existir no diretorio.
+          node -e '
+            const fs = require("fs");
+            const html = fs.readFileSync("index.html", "utf8");
+            let bad = 0;
+            for (const m of html.matchAll(/(?:src|href)="(?!#|https?:)([^"]+)"/g)) {
+              if (!fs.existsSync(m[1])) { console.log("ARQUIVO AUSENTE:", m[1]); bad = 1; }
+            }
+            process.exit(bad);
+          '
+          # Chaves desbalanceadas no CSS derrubam tudo a partir do erro.
+          awk '{o+=gsub(/{/,"{"); c+=gsub(/}/,"}")} END{
+            if (o != c) { print "CSS desbalanceado: " o " { e " c " }"; exit 1 }
+            print "css equilibrado: " o " blocos"
+          }' app.css
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v7
+        with:
+          context: .build/ntp
+          # Python + chrony do apt: vale pras duas arquiteturas.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo
+        run: |
+          echo "### Imagem publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "No primeiro build: Packages -> ntp -> Package settings -> Change visibility -> Public." >> "$GITHUB_STEP_SUMMARY"
