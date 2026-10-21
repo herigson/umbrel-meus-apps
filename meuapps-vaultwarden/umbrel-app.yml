@@ -4,7 +4,7 @@ name: Vaultwarden
 tagline: Servidor de senhas compativel com Bitwarden (self-hosted)
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/vaultwarden/icon.svg
 category: Files
-version: "1.37.1"
+version: "1.37.4"
 port: 8089
 description: >-
   Vaultwarden e um servidor leve e compativel com o Bitwarden, escrito em Rust.
@@ -20,14 +20,68 @@ description: >-
   dia nos apps Bitwarden, exponha por HTTPS via Tailscale.
 
 
-  Apos criar sua conta, desative novos cadastros mudando SIGNUPS_ALLOWED para
-  false no docker-compose e reiniciando o app.
+  Enquanto SIGNUPS_ALLOWED estiver "true", qualquer um que alcance o servico
+  pode criar uma conta - e este app sai de proposito da autenticacao do
+  Umbrel (PROXY_AUTH_ADD false), senao os apps Bitwarden nao falariam com a
+  API. Depois que todas as contas existirem, troque para "false" NESTE
+  REPOSITORIO: editar o docker-compose.yml no servidor nao adianta, porque o
+  Umbrel o regenera a cada update. Para abrir so para alguns enderecos sem
+  deixar aberto a todos, existe SIGNUPS_DOMAINS_WHITELIST.
 
 
   Nao e afiliado ao Bitwarden(R) oficial. Bugs devem ir para o projeto
   Vaultwarden.
 releaseNotes: >-
-  Vaultwarden 1.37.1. Release de correcao: ajusta os parametros das URLs de
+  ATUALIZACAO DE SEGURANCA. Pula tres versoes (1.37.2, 1.37.3 e 1.37.4), e a
+  ultima delas traz SETE avisos de seguranca.
+
+
+  Os da 1.37.4, por severidade:
+
+
+  - GHSA-69q9-v8p6-xvx3 revogacao de membro de organizacao - ALTA (8.1)
+
+  - GHSA-7jg8-8m5x-6j9r autenticacao de dois fatores - media (6.8)
+
+  - GHSA-v576-3wvq-xh3c convites de organizacao - media (6.8)
+
+  - GHSA-q5x6-grh5-fqgc anexos - media (6.5)
+
+  - GHSA-64mc-4p6f-r7x9 registros de evento de organizacao - media (4.3)
+
+  - GHSA-7ccc-c43j-4p36 compartilhamento de item - media (4.3)
+
+  - GHSA-qwx4-wcv4-mpcv chave de API de organizacao - baixa (3.8)
+
+
+  A 1.37.3 corrige algo que pesa no uso de um cofre pessoal: ate ela, trocar
+  a senha mestra ou o 2FA NAO invalidava os dispositivos que ja tinham o
+  "lembrar 2FA" marcado. Agora esses tokens sao revogados. Ela tambem passa
+  a limitar a taxa de chamadas nos endpoints de pre-login e autenticacao.
+
+
+  A 1.37.2 e requisito para clientes Bitwarden 2026.8.0 ou mais novos.
+
+
+  ATENCAO 1 - IP do cliente inverteu de lado. O endereco considerado passa a
+  ser o mais a DIREITA que nao esteja em IP_HEADER_TRUSTED_PROXIES; antes era
+  o mais a esquerda. Nao abre brecha, mas com proxy reverso na frente pode
+  fazer o novo limite de taxa contar todos os clientes como um so. Se isso
+  aparecer, a correcao e listar os proxies nessa variavel.
+
+
+  ATENCAO 2 - endpoints legados removidos: POST /identity/accounts/register e
+  POST /api/accounts/prelogin. Clientes Bitwarden antigos param de funcionar;
+  atualize os aplicativos junto com o servidor.
+
+
+  O cadastro de novas contas (SIGNUPS_ALLOWED) segue LIGADO de proposito -
+  ha mais uma conta a ser criada. Desligar depois e so trocar para "false"
+  neste repositorio; editar no servidor nao adianta, porque o Umbrel
+  regenera o docker-compose.yml a cada update.
+
+
+  Versao anterior (1.37.1): release de correcao. Ajustava os parametros das URLs de
   convite (initOrganization / orgUserHasExistingUser) e corrige a build da
   imagem Alpine. Sem mudancas que quebrem compatibilidade. Continua rodando
   como root (imagem padrao), entao nao tem o problema de permissao de bind
