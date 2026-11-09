@@ -4,7 +4,7 @@ name: Vaultwarden
 tagline: Servidor de senhas compativel com Bitwarden (self-hosted)
 icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/vaultwarden/icon.svg
 category: Files
-version: "1.37.4"
+version: "1.37.5"
 port: 8089
 description: >-
   Vaultwarden e um servidor leve e compativel com o Bitwarden, escrito em Rust.
@@ -32,47 +32,29 @@ description: >-
   Nao e afiliado ao Bitwarden(R) oficial. Bugs devem ir para o projeto
   Vaultwarden.
 releaseNotes: >-
-  ATUALIZACAO DE SEGURANCA. Pula tres versoes (1.37.2, 1.37.3 e 1.37.4), e a
-  ultima delas traz SETE avisos de seguranca.
+  ATUALIZACAO DE SEGURANCA. Dois avisos, ambos de severidade media, ainda
+  privados aguardando atribuicao de CVE.
 
 
-  Os da 1.37.4, por severidade:
+  - GHSA-x9cq-f669-vrr4 icones de site - media (5.3)
+
+  - GHSA-9pjj-f9g5-3x4c emergency access - media (4.3)
 
 
-  - GHSA-69q9-v8p6-xvx3 revogacao de membro de organizacao - ALTA (8.1)
-
-  - GHSA-7jg8-8m5x-6j9r autenticacao de dois fatores - media (6.8)
-
-  - GHSA-v576-3wvq-xh3c convites de organizacao - media (6.8)
-
-  - GHSA-q5x6-grh5-fqgc anexos - media (6.5)
-
-  - GHSA-64mc-4p6f-r7x9 registros de evento de organizacao - media (4.3)
-
-  - GHSA-7ccc-c43j-4p36 compartilhamento de item - media (4.3)
-
-  - GHSA-qwx4-wcv4-mpcv chave de API de organizacao - baixa (3.8)
+  O web vault embutido sobe para 2026.10.1. O upstream marca esta versao como
+  REQUISITO para duas coisas: a alternancia de login em duas etapas no web
+  vault 2026.7.1 ou mais novo, e a tomada de conta por emergency access no
+  2026.9.0 ou mais novo.
 
 
-  A 1.37.3 corrige algo que pesa no uso de um cofre pessoal: ate ela, trocar
-  a senha mestra ou o 2FA NAO invalidava os dispositivos que ja tinham o
-  "lembrar 2FA" marcado. Agora esses tokens sao revogados. Ela tambem passa
-  a limitar a taxa de chamadas nos endpoints de pre-login e autenticacao.
-
-
-  A 1.37.2 e requisito para clientes Bitwarden 2026.8.0 ou mais novos.
-
-
-  ATENCAO 1 - IP do cliente inverteu de lado. O endereco considerado passa a
-  ser o mais a DIREITA que nao esteja em IP_HEADER_TRUSTED_PROXIES; antes era
-  o mais a esquerda. Nao abre brecha, mas com proxy reverso na frente pode
-  fazer o novo limite de taxa contar todos os clientes como um so. Se isso
-  aparecer, a correcao e listar os proxies nessa variavel.
-
-
-  ATENCAO 2 - endpoints legados removidos: POST /identity/accounts/register e
-  POST /api/accounts/prelogin. Clientes Bitwarden antigos param de funcionar;
-  atualize os aplicativos junto com o servidor.
+  ATENCAO - valor de configuracao invalido agora ABORTA o startup, em vez de
+  ser ignorado como antes. Pega numeros acima dos novos limites, rate-limit
+  ou timeout abaixo de 1, DATABASE_MIN_CONNS maior que DATABASE_MAX_CONNS e
+  valores nao-cron nos agendamentos de purga de Duo e SSO. Neste app NAO
+  afeta: o compose define apenas ROCKET_PORT (8089) e SIGNUPS_ALLOWED, e
+  nenhum dos dois cai nessas regras. Mas se um dia alguem acrescentar
+  variaveis aqui, lembre que um erro de digitacao deixa de ser silencioso e
+  passa a impedir o app de subir.
 
 
   O cadastro de novas contas (SIGNUPS_ALLOWED) segue LIGADO de proposito -
@@ -81,11 +63,12 @@ releaseNotes: >-
   regenera o docker-compose.yml a cada update.
 
 
-  Versao anterior (1.37.1): release de correcao. Ajustava os parametros das URLs de
-  convite (initOrganization / orgUserHasExistingUser) e corrige a build da
-  imagem Alpine. Sem mudancas que quebrem compatibilidade. Continua rodando
-  como root (imagem padrao), entao nao tem o problema de permissao de bind
-  mount.
+  Versao anterior (1.37.4): release de seguranca com SETE avisos, o mais
+  grave deles ALTO (8.1), em revogacao de membro de organizacao. Tambem
+  removeu os endpoints legados POST /identity/accounts/register e POST
+  /api/accounts/prelogin, e inverteu o lado da leitura do IP do cliente
+  quando IP_HEADER esta definido - o que nao afeta este setup, que nao
+  define essa variavel.
 developer: Vaultwarden (dani-garcia)
 website: https://github.com/dani-garcia/vaultwarden
 submitter: herigson
