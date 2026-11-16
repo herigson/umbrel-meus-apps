@@ -1,0 +1,99 @@
+manifestVersion: 1
+id: meuapps-syslog
+name: Syslog
+tagline: Servidor de syslog central para os equipamentos da rede
+icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4dc.svg
+category: Networking
+version: "4.11.0"
+port: 8514
+description: >-
+  Servidor de syslog (syslog-ng) para receber os logs dos equipamentos da
+  rede: o roteador MikroTik, os access points, o DVR e qualquer coisa que
+  fale syslog.
+
+
+  Grava um arquivo por host e por dia em texto puro, e cria o diretorio de
+  cada aparelho na primeira mensagem que chegar dele. Nao precisa cadastrar
+  nada: basta apontar o aparelho para o IP do Umbrel na porta 514/UDP.
+
+
+  POR QUE ISSO EXISTE: o log de memoria do RouterOS zera a cada reboot, e as
+  ONU guardam log em RAM. Toda queda de conexao vinha apagando a propria
+  evidencia - em 12/11/2026 a MikroTik reiniciou e levou todo o historico de
+  PPPoE com ela, justamente no meio de uma investigacao. Com o log aqui, ele
+  sobrevive ao reinicio do aparelho que gerou o evento.
+
+
+  O botao "Open" abre uma listagem navegavel dos logs, em texto puro e
+  somente leitura, atras da autenticacao do Umbrel. Serve pra ler o log do
+  roteador pelo navegador durante uma queda, sem precisar abrir SSH.
+
+
+  ATENCAO: syslog por UDP nao tem autenticacao nem criptografia, e nao
+  confirma entrega. Qualquer aparelho da LAN pode injetar linhas, e o que
+  passar enquanto este app estiver parado se perde e nao volta. Aceitavel
+  numa rede domestica - mas nao exponha a 514 para a internet.
+
+
+  COMO LIGAR O MIKROTIK (no terminal do roteador):
+
+
+  /system logging action add name=syslog target=remote remote=<ip-do-umbrel>
+  remote-port=514 src-address=<ip-do-roteador>
+
+
+  /system logging add topics=ppp action=syslog
+
+
+  O src-address fixo importa: sem ele o roteador escolhe a interface de saida
+  e o hostname no log pode variar, o que atrapalha separar por origem.
+
+
+  Mantenha os topicos ESTREITOS. Em 07/11/2026 o netwatch gerava ~360 linhas
+  por hora - nesse ritmo qualquer janela de retencao se autoapaga. Prefira
+  ppp, pppoe e interface a um "topics=all".
+releaseNotes: >-
+  Primeira versao empacotada na loja.
+
+
+  Imagem oficial do syslog-ng (balabit/syslog-ng 4.11.0), fixada de proposito
+  numa versao de junho de 2026 em vez da 4.12.0, que saiu em 15/11.
+
+
+  Config versionada NO REPOSITORIO (meuapps-syslog/syslog-ng.conf). Para
+  mudar, alterar la e dar push - assim a config e a fonte da verdade e nao
+  depende de edicao manual no servidor. Esse foi o modo de falha do NPM na
+  porta 40443, do datadir do electrs e do i2pd do app Bitcoin: a correcao
+  vivia so no servidor e o update a atropelava. Nos apps da loja oficial isso
+  exige script de reaplicacao; aqui o repo e a fonte, entao o update deixa de
+  ser inimigo e passa a ser o mecanismo de entrega.
+
+
+  Os logs ficam em app-data, no disco interno - NAO no HD externo. O volume e
+  de alguns KB por mes com topicos estreitos, e apontar para o HD traria de
+  volta a armadilha do electrs: com o disco desmontado, o Docker cria o
+  diretorio vazio no disco interno e isso so aparece meses depois. Volume
+  minusculo nao justifica o risco, e em app-data o log entra no backup junto
+  com o resto.
+
+
+  Dois containers de proposito: o syslog-ng recebe e grava, e um nginx
+  somente-leitura serve a listagem para o app_proxy. Um servidor de syslog
+  nao tem interface web, e a alternativa era um botao "Open" apontando para o
+  vazio.
+
+
+  O arquivo cresce sem limite - sao poucos KB por mes, mas nada apaga nada.
+  Se um dia incomodar, "find .../logs -name '*.log' -mtime +365 -delete".
+developer: syslog-ng (One Identity)
+website: https://www.syslog-ng.com
+submitter: herigson
+submission: https://github.com/herigson/umbrel-meus-apps
+repo: https://github.com/syslog-ng/syslog-ng
+support: https://github.com/syslog-ng/syslog-ng/discussions
+gallery:
+  - https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4dc.svg
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
