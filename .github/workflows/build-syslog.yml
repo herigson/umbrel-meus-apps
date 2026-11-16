@@ -42,11 +42,19 @@ jobs:
       - name: Checar sintaxe do syslog-ng.conf
         # Antes de publicar. Config invalida aqui vira container em loop de
         # restart no Umbrel, e a descoberta so aconteceria depois do Update.
+        #
+        # O --entrypoint nao e enfeite: a imagem tem
+        # ENTRYPOINT ["/usr/local/bin/entrypoint.sh"], que NAO termina em
+        # exec "$@". Sem sobrescrever, o comando vira
+        # "entrypoint.sh syslog-ng --syntax-only ..." e o script sai com 1
+        # sem nem olhar a config - foi exatamente assim que este passo
+        # falhou na 4.11.0-4 e o pacote nunca chegou a ser criado.
         run: |
           docker run --rm \
+            --entrypoint /usr/sbin/syslog-ng \
             -v "$PWD/.build/syslog/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro" \
             balabit/syslog-ng:4.11.0 \
-            syslog-ng --syntax-only -f /etc/syslog-ng/syslog-ng.conf
+            --syntax-only -f /etc/syslog-ng/syslog-ng.conf
 
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
