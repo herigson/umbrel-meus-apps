@@ -307,10 +307,9 @@
               "aqui, e o que for apagado nao volta.";
     if (ehHoje) {
       txt += "\n\nESTE E O ARQUIVO DE HOJE, que o syslog-ng esta gravando " +
-             "neste momento. Apagar um arquivo aberto no Linux nao fecha o " +
-             "arquivo: o syslog-ng segue escrevendo num inode que ja nao " +
-             "tem nome, e as mensagens novas somem sem erro nenhum ate o " +
-             "app ser reiniciado.";
+             "neste momento. Ele se recria sozinho no primeiro intervalo de " +
+             "10 segundos sem mensagem (time-reap), mas o que chegar antes " +
+             "disso se perde sem aviso.";
     }
     if (!window.confirm(txt)) return;
 
@@ -325,9 +324,10 @@
         if (ehHoje) {
           elAviso.hidden = false;
           elAviso.textContent =
-            "Arquivo de hoje apagado. O syslog-ng continua com ele aberto e " +
-            "nada novo vai aparecer aqui ate o app reiniciar. No Umbrel: " +
-            "umbreld client apps.restart.mutate --appId meuapps-syslog";
+            "Arquivo de hoje apagado. Ele volta sozinho na proxima mensagem " +
+            "depois de 10 segundos de silencio; o que chegar nessa janela " +
+            "nao e gravado. Se nao reaparecer, o fluxo nao esta tendo folga " +
+            "de 10s - estreite os topicos no aparelho de origem.";
         }
         return carregaDatas(host);
       })

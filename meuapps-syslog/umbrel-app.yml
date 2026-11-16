@@ -4,7 +4,7 @@ name: Syslog
 tagline: Servidor de syslog central para os equipamentos da rede
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4dc.svg
 category: Networking
-version: "4.11.0-2"
+version: "4.11.0-3"
 port: 8514
 description: >-
   Servidor de syslog (syslog-ng) para receber os logs dos equipamentos da
@@ -71,13 +71,24 @@ releaseNotes: >-
   continua somente leitura.
 
 
-  DOIS CUSTOS, declarados: (1) o worker do nginx passa a rodar como root,
-  porque apagar depende de escrita no DIRETORIO e o syslog-ng cria tudo como
-  root - por isso o nginx.conf agora e a config COMPLETA, montada em
-  /etc/nginx/nginx.conf, ja que "user" nao existe dentro de conf.d. (2)
-  apagar o arquivo DE HOJE nao para o syslog-ng, que segue escrevendo num
-  inode sem nome ate o app reiniciar; a tela avisa isso na confirmacao e
-  mostra o comando de restart depois.
+  APAGAR O ARQUIVO DE HOJE nao exige reiniciar nada: o syslog-ng ganhou
+  time-reap(10), entao larga o descritor no primeiro intervalo de 10
+  segundos sem mensagem e reabre PELO NOME na seguinte, recriando o arquivo
+  sozinho. Sem isso, apagar um arquivo aberto no Linux deixaria o syslog-ng
+  escrevendo num inode sem nome, em silencio, ate o processo morrer. A
+  janela de perda e so o intervalo entre o clique e o reap.
+
+
+  A alternativa seria o botao reiniciar o container, o que exigiria
+  /var/run/docker.sock dentro do nginx - acesso ao socket do Docker e
+  equivalente a root no host, e seria um preco alto para apagar um arquivo.
+  Pior: durante o restart a 514/udp nao escuta, e UDP nao retransmite.
+
+
+  O CUSTO QUE SOBRA: o worker do nginx passa a rodar como root, porque
+  apagar depende de escrita no DIRETORIO e o syslog-ng cria tudo como root -
+  por isso o nginx.conf agora e a config COMPLETA, montada em
+  /etc/nginx/nginx.conf, ja que "user" nao existe dentro de conf.d.
 
 
   Nao apaga diretorio de host, so arquivos de dia. Um host que fique sem
