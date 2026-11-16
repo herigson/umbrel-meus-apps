@@ -4,7 +4,7 @@ name: Syslog
 tagline: Servidor de syslog central para os equipamentos da rede
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4dc.svg
 category: Networking
-version: "4.11.0-1"
+version: "4.11.0-2"
 port: 8514
 description: >-
   Servidor de syslog (syslog-ng) para receber os logs dos equipamentos da
@@ -53,7 +53,39 @@ description: >-
   por hora - nesse ritmo qualquer janela de retencao se autoapaga. Prefira
   ppp, pppoe e interface a um "topics=all".
 releaseNotes: >-
-  Entra a tela de leitura dos logs, no lugar da listagem crua de diretorio.
+  Botao Apagar na tela, que remove do disco o arquivo do dia selecionado, e
+  fuso horario cravado no app.
+
+
+  O FUSO: o umbrelOS vem em UTC de fabrica, e em 16/11/2026 isso colocava 3
+  horas de diferenca em todo o log. Pior que o incomodo de ler: o nome do
+  arquivo tambem sai em UTC, entao o dia virava as 21h locais e uma queda as
+  22h caia no arquivo do dia seguinte - exatamente o tipo de coisa que faz
+  voce procurar no dia errado. Agora TZ=America/Sao_Paulo vai no compose,
+  que tem precedencia sobre /etc/localtime e sobrevive a um reset do fuso do
+  host num upgrade.
+
+
+  O APAGAR: o nginx passa a aceitar DELETE em /logs/ (dav_methods DELETE),
+  e a pagina chama isso com uma confirmacao que nomeia o arquivo. /raw/
+  continua somente leitura.
+
+
+  DOIS CUSTOS, declarados: (1) o worker do nginx passa a rodar como root,
+  porque apagar depende de escrita no DIRETORIO e o syslog-ng cria tudo como
+  root - por isso o nginx.conf agora e a config COMPLETA, montada em
+  /etc/nginx/nginx.conf, ja que "user" nao existe dentro de conf.d. (2)
+  apagar o arquivo DE HOJE nao para o syslog-ng, que segue escrevendo num
+  inode sem nome ate o app reiniciar; a tela avisa isso na confirmacao e
+  mostra o comando de restart depois.
+
+
+  Nao apaga diretorio de host, so arquivos de dia. Um host que fique sem
+  nenhum arquivo continua aparecendo no seletor, vazio.
+
+
+  Versao anterior (4.11.0-1): tela de leitura dos logs, no lugar da listagem
+  crua de diretorio.
 
   Escolha de aparelho e de dia, filtro de texto com destaque e contagem de
   linhas casadas, carimbo de tempo em coluna propria, linhas de erro e de

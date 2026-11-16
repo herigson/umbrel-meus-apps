@@ -61,6 +61,10 @@
   button { cursor: pointer; }
   button:hover { border-color: var(--accent); }
   button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  button.perigo { color: var(--err); }
+  button.perigo:hover { border-color: var(--err); background: var(--err-bg); }
+  button:disabled { opacity: .45; cursor: default; }
+  button:disabled:hover { border-color: var(--border); background: var(--panel); }
 
   .meta { color: var(--dim); font-size: 12px; white-space: nowrap; }
 
@@ -70,6 +74,7 @@
     border-radius: 8px; color: var(--dim); max-width: 760px;
   }
   #erro { color: var(--err); background: var(--err-bg); border-style: solid; }
+  #aviso { color: var(--warn); background: var(--warn-bg); border-style: solid; }
 
   .linhas { font-family: var(--mono); font-size: 12.5px; }
   .linha {
@@ -99,12 +104,14 @@
   <input type="search" id="filtro" placeholder="Filtrar (ex.: pppoe, not responding)" aria-label="Filtrar linhas">
   <button id="auto" aria-pressed="false" title="Recarrega a cada 10s">Auto</button>
   <button id="fim" title="Ir para o fim">Fim</button>
+  <button id="apagar" class="perigo" title="Apagar do disco o arquivo deste dia">Apagar</button>
   <span class="sep"></span>
   <span class="meta" id="contagem"></span>
 </header>
 
 <main>
   <div id="erro" hidden></div>
+  <div id="aviso" hidden></div>
   <div id="empty" hidden></div>
   <div class="linhas" id="linhas"></div>
 </main>
@@ -118,9 +125,11 @@
   var elFiltro = document.getElementById("filtro");
   var elAuto = document.getElementById("auto");
   var elFim = document.getElementById("fim");
+  var elApagar = document.getElementById("apagar");
   var elLinhas = document.getElementById("linhas");
   var elContagem = document.getElementById("contagem");
   var elErro = document.getElementById("erro");
+  var elAviso = document.getElementById("aviso");
   var elEmpty = document.getElementById("empty");
 
   var bruto = [];      // linhas do arquivo atual
@@ -178,6 +187,7 @@
   }
 
   function carregaArquivo(host, arquivo, manterPosicao) {
+    elApagar.disabled = !(host && arquivo);
     if (!host || !arquivo) { bruto = []; render(); return Promise.resolve(); }
     var y = window.scrollY;
     var noFim = (window.innerHeight + y) >= (document.body.scrollHeight - 40);
@@ -277,6 +287,59 @@
   elFim.addEventListener("click", function () {
     window.scrollTo(0, document.body.scrollHeight);
   });
+  // Data de hoje no fuso do navegador, no mesmo formato do nome do arquivo.
+  // Serve so pra saber se o alvo do Apagar e o arquivo que o syslog-ng tem
+  // aberto neste instante.
+  function hojeArquivo() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + ".log";
+  }
+
+  elApagar.addEventListener("click", function () {
+    var host = elHost.value;
+    var arq = elData.value;
+    if (!host || !arq) return;
+
+    var ehHoje = (arq === hojeArquivo());
+    var txt = "Apagar " + host + "/" + arq + " ?\n\n" +
+              "O arquivo sai do disco agora. Nao existe lixeira nem backup " +
+              "aqui, e o que for apagado nao volta.";
+    if (ehHoje) {
+      txt += "\n\nESTE E O ARQUIVO DE HOJE, que o syslog-ng esta gravando " +
+             "neste momento. Apagar um arquivo aberto no Linux nao fecha o " +
+             "arquivo: o syslog-ng segue escrevendo num inode que ja nao " +
+             "tem nome, e as mensagens novas somem sem erro nenhum ate o " +
+             "app ser reiniciado.";
+    }
+    if (!window.confirm(txt)) return;
+
+    elApagar.disabled = true;
+    fetch("logs/" + encodeURIComponent(host) + "/" + encodeURIComponent(arq),
+          { method: "DELETE" })
+      .then(function (r) {
+        // 204 e o sucesso do modulo dav. 404 quer dizer que ja nao estava la,
+        // o que para o proposito de quem clicou da no mesmo.
+        if (!r.ok && r.status !== 404) throw new Error("HTTP " + r.status);
+        limpaErro();
+        if (ehHoje) {
+          elAviso.hidden = false;
+          elAviso.textContent =
+            "Arquivo de hoje apagado. O syslog-ng continua com ele aberto e " +
+            "nada novo vai aparecer aqui ate o app reiniciar. No Umbrel: " +
+            "umbreld client apps.restart.mutate --appId meuapps-syslog";
+        }
+        return carregaDatas(host);
+      })
+      .then(function () { return recarrega(false); })
+      .catch(function (e) {
+        erro("Nao consegui apagar: " + e.message + ". Confira se o nginx " +
+             "subiu com dav_methods DELETE e com 'user root', e se o volume " +
+             "de logs do container web esta montado SEM :ro.");
+      })
+      .then(function () { elApagar.disabled = false; });
+  });
+
   elAuto.addEventListener("click", function () {
     var ligado = elAuto.getAttribute("aria-pressed") === "true";
     elAuto.setAttribute("aria-pressed", ligado ? "false" : "true");
