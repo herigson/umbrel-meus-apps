@@ -77,7 +77,7 @@
     word-break: break-word; border-left: 3px solid transparent;
   }
   .linha:nth-child(odd) { background: color-mix(in srgb, var(--panel) 55%, transparent); }
-  .linha .t { color: var(--dim); flex: 0 0 auto; }
+  .linha .t { color: var(--dim); flex: 0 0 auto; min-width: 58px; }
   .linha .m { flex: 1 1 auto; }
   .linha.err { background: var(--err-bg); border-left-color: var(--err); }
   .linha.err .m { color: var(--err); }
@@ -199,14 +199,22 @@
       .catch(function (e) { erro("Nao consegui ler o arquivo: " + e.message); });
   }
 
-  // Separa o carimbo de tempo (primeiro campo do template do syslog-ng)
-  // do resto da linha, pra exibir em coluna propria.
+  // Separa o carimbo de tempo e descarta o que ja esta nos seletores
+  // acima: a data (que e o proprio arquivo) e o host (que e o diretorio).
+  // Repetir os dois em cada linha so atrapalha a varredura.
   function parte(linha) {
-    var m = linha.match(/^(\S+)\s+(.*)$/);
-    if (m && /^\d{4}-\d{2}-\d{2}T/.test(m[1])) {
-      return { t: m[1].replace(/^\d{4}-\d{2}-\d{2}T/, "").replace(/[+-]\d{2}:\d{2}$/, ""),
-               m: m[2] };
-    }
+    // Formato BSD, que e o padrao do syslog-ng:
+    //   "Nov 16 13:44:31 192.168.88.1 pppoe,ppp,info pppoe-wan: ..."
+    var bsd = linha.match(
+      /^([A-Z][a-z]{2}\s+\d{1,2}\s+(\d{2}:\d{2}:\d{2}))\s+(\S+)\s+([\s\S]*)$/);
+    if (bsd) return { t: bsd[2], m: bsd[4] };
+
+    // Formato ISO, caso a config mude um dia:
+    //   "2026-11-16T13:44:31-03:00 192.168.88.1 ..."
+    var iso = linha.match(
+      /^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:\d{2}|Z)?\s+(\S+)\s+([\s\S]*)$/);
+    if (iso) return { t: iso[1], m: iso[3] };
+
     return { t: "", m: linha };
   }
 
