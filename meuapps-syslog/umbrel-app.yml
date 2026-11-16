@@ -82,13 +82,21 @@ releaseNotes: >-
   numa versao de junho de 2026 em vez da 4.12.0, que saiu em 15/11.
 
 
-  Config versionada NO REPOSITORIO (meuapps-syslog/syslog-ng.conf). Para
-  mudar, alterar la e dar push - assim a config e a fonte da verdade e nao
-  depende de edicao manual no servidor. Esse foi o modo de falha do NPM na
-  porta 40443, do datadir do electrs e do i2pd do app Bitcoin: a correcao
-  vivia so no servidor e o update a atropelava. Nos apps da loja oficial isso
-  exige script de reaplicacao; aqui o repo e a fonte, entao o update deixa de
-  ser inimigo e passa a ser o mecanismo de entrega.
+  Config versionada NO REPOSITORIO (meuapps-syslog/syslog-ng.conf).
+
+
+  ATENCAO, medido em 16/11/2026: um Update do app recopia APENAS o
+  docker-compose.yml e o umbrel-app.yml. Arquivos auxiliares como
+  syslog-ng.conf, nginx.conf e index.html vem SO NA INSTALACAO. Mudar a
+  config no repo e clicar Update NAO propaga - e pior, se o compose novo
+  mandar montar um arquivo que ainda nao existe em app-data, o Docker cria
+  um DIRETORIO no lugar.
+
+
+  Para alterar config depois de instalado: copiar o arquivo para
+  ~/umbrel/app-data/meuapps-syslog/ e reiniciar o app. A saida definitiva e
+  assar a config numa imagem propria, porque a tag da imagem vive no
+  docker-compose.yml, que esse sim propaga.
 
 
   Os logs ficam em app-data, no disco interno - NAO no HD externo. O volume e
