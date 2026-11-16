@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Syslog</title>
+<style>
+  /* Tudo embutido de proposito: esta tela precisa funcionar justamente
+     quando a internet esta fora. Nenhum recurso externo. */
+  :root {
+    color-scheme: light;
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #d9dde3;
+    --text: #1c2024;
+    --dim: #6b7280;
+    --accent: #2563eb;
+    --accent-soft: #e8effd;
+    --err: #b42318;
+    --err-bg: #fdecea;
+    --warn: #8a5a00;
+    --warn-bg: #fdf3e2;
+    --mark: #ffe066;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #14171a; --panel: #1b1f23; --border: #2c3238;
+      --text: #e6e8ea; --dim: #9aa4af; --accent: #6aa3ff; --accent-soft: #1d2a3f;
+      --err: #ff8a7a; --err-bg: #3a1f1c; --warn: #ffc866; --warn-bg: #3a2f17;
+      --mark: #7a5c00;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #14171a; --panel: #1b1f23; --border: #2c3238;
+    --text: #e6e8ea; --dim: #9aa4af; --accent: #6aa3ff; --accent-soft: #1d2a3f;
+    --err: #ff8a7a; --err-bg: #3a1f1c; --warn: #ffc866; --warn-bg: #3a2f17;
+    --mark: #7a5c00;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header .sep { flex: 1; }
+
+  select, input[type="search"], button {
+    font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px;
+  }
+  input[type="search"] { min-width: 180px; flex: 1 1 200px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+
+  .meta { color: var(--dim); font-size: 12px; white-space: nowrap; }
+
+  main { padding: 0 0 24px; }
+  #empty, #erro {
+    margin: 28px 16px; padding: 16px; border: 1px dashed var(--border);
+    border-radius: 8px; color: var(--dim); max-width: 760px;
+  }
+  #erro { color: var(--err); background: var(--err-bg); border-style: solid; }
+
+  .linhas { font-family: var(--mono); font-size: 12.5px; }
+  .linha {
+    display: flex; gap: 10px; padding: 1px 16px; white-space: pre-wrap;
+    word-break: break-word; border-left: 3px solid transparent;
+  }
+  .linha:nth-child(odd) { background: color-mix(in srgb, var(--panel) 55%, transparent); }
+  .linha .t { color: var(--dim); flex: 0 0 auto; }
+  .linha .m { flex: 1 1 auto; }
+  .linha.err { background: var(--err-bg); border-left-color: var(--err); }
+  .linha.err .m { color: var(--err); }
+  .linha.warn { background: var(--warn-bg); border-left-color: var(--warn); }
+  mark { background: var(--mark); color: inherit; border-radius: 2px; }
+
+  @media (max-width: 560px) {
+    .linha { flex-direction: column; gap: 0; }
+    .linha .t { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Syslog</h1>
+  <select id="host" aria-label="Aparelho"></select>
+  <select id="data" aria-label="Dia"></select>
+  <input type="search" id="filtro" placeholder="Filtrar (ex.: pppoe, not responding)" aria-label="Filtrar linhas">
+  <button id="auto" aria-pressed="false" title="Recarrega a cada 10s">Auto</button>
+  <button id="fim" title="Ir para o fim">Fim</button>
+  <span class="sep"></span>
+  <span class="meta" id="contagem"></span>
+</header>
+
+<main>
+  <div id="erro" hidden></div>
+  <div id="empty" hidden></div>
+  <div class="linhas" id="linhas"></div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var elHost = document.getElementById("host");
+  var elData = document.getElementById("data");
+  var elFiltro = document.getElementById("filtro");
+  var elAuto = document.getElementById("auto");
+  var elFim = document.getElementById("fim");
+  var elLinhas = document.getElementById("linhas");
+  var elContagem = document.getElementById("contagem");
+  var elErro = document.getElementById("erro");
+  var elEmpty = document.getElementById("empty");
+
+  var bruto = [];      // linhas do arquivo atual
+  var timer = null;
+
+  function erro(msg) {
+    elErro.textContent = msg;
+    elErro.hidden = false;
+  }
+  function limpaErro() { elErro.hidden = true; }
+
+  // O nginx serve a listagem de diretorio em JSON (autoindex_format json).
+  function lista(caminho) {
+    return fetch(caminho, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error(r.status + " em " + caminho);
+      return r.json();
+    });
+  }
+
+  function carregaHosts() {
+    return lista("logs/").then(function (itens) {
+      var dirs = itens.filter(function (i) { return i.type === "directory"; })
+                      .map(function (i) { return i.name; })
+                      .sort();
+      elHost.innerHTML = "";
+      dirs.forEach(function (d) {
+        var o = document.createElement("option");
+        o.value = d; o.textContent = d;
+        elHost.appendChild(o);
+      });
+      if (!dirs.length) {
+        elEmpty.hidden = false;
+        elEmpty.textContent = "Nenhum aparelho enviou log ainda. O diretorio de cada host nasce na primeira mensagem recebida na porta 514/UDP.";
+        return null;
+      }
+      elEmpty.hidden = true;
+      // Preferencia pelo host que parece ser o roteador, se houver so um nao ha escolha.
+      return dirs[0];
+    });
+  }
+
+  function carregaDatas(host) {
+    return lista("logs/" + encodeURIComponent(host) + "/").then(function (itens) {
+      var arqs = itens.filter(function (i) { return i.type === "file" && /\.log$/.test(i.name); })
+                      .map(function (i) { return i.name; })
+                      .sort().reverse();   // mais recente primeiro
+      elData.innerHTML = "";
+      arqs.forEach(function (a) {
+        var o = document.createElement("option");
+        o.value = a; o.textContent = a.replace(/\.log$/, "");
+        elData.appendChild(o);
+      });
+      return arqs[0] || null;
+    });
+  }
+
+  function carregaArquivo(host, arquivo, manterPosicao) {
+    if (!host || !arquivo) { bruto = []; render(); return Promise.resolve(); }
+    var y = window.scrollY;
+    var noFim = (window.innerHeight + y) >= (document.body.scrollHeight - 40);
+    return fetch("logs/" + encodeURIComponent(host) + "/" + encodeURIComponent(arquivo),
+                 { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.text();
+      })
+      .then(function (txt) {
+        limpaErro();
+        bruto = txt.replace(/\n+$/, "").split("\n");
+        render();
+        if (manterPosicao) {
+          if (noFim) window.scrollTo(0, document.body.scrollHeight);
+          else window.scrollTo(0, y);
+        }
+      })
+      .catch(function (e) { erro("Nao consegui ler o arquivo: " + e.message); });
+  }
+
+  // Separa o carimbo de tempo (primeiro campo do template do syslog-ng)
+  // do resto da linha, pra exibir em coluna propria.
+  function parte(linha) {
+    var m = linha.match(/^(\S+)\s+(.*)$/);
+    if (m && /^\d{4}-\d{2}-\d{2}T/.test(m[1])) {
+      return { t: m[1].replace(/^\d{4}-\d{2}-\d{2}T/, "").replace(/[+-]\d{2}:\d{2}$/, ""),
+               m: m[2] };
+    }
+    return { t: "", m: linha };
+  }
+
+  function severidade(txt) {
+    var s = txt.toLowerCase();
+    if (/\b(error|critical|fail|failed|denied|timeout|not responding|terminating|disconnected|down)\b/.test(s)) return "err";
+    if (/\b(warn|warning|retry|retrying|lost)\b/.test(s)) return "warn";
+    return "";
+  }
+
+  function escapa(s) {
+    return s.replace(/[&<>]/g, function (c) {
+      return c === "&" ? "&amp;" : c === "<" ? "&lt;" : "&gt;";
+    });
+  }
+
+  function destaca(s, termo) {
+    var txt = escapa(s);
+    if (!termo) return txt;
+    var alvo = escapa(termo).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return txt.replace(new RegExp(alvo, "gi"), function (x) { return "<mark>" + x + "</mark>"; });
+  }
+
+  function render() {
+    var termo = elFiltro.value.trim();
+    var alvo = termo.toLowerCase();
+    var frag = document.createDocumentFragment();
+    var mostradas = 0;
+
+    bruto.forEach(function (linha) {
+      if (!linha) return;
+      if (alvo && linha.toLowerCase().indexOf(alvo) === -1) return;
+      mostradas++;
+      var p = parte(linha);
+      var div = document.createElement("div");
+      div.className = "linha " + severidade(linha);
+      div.innerHTML = '<span class="t">' + escapa(p.t) + '</span>' +
+                      '<span class="m">' + destaca(p.m, termo) + '</span>';
+      frag.appendChild(div);
+    });
+
+    elLinhas.innerHTML = "";
+    elLinhas.appendChild(frag);
+    elContagem.textContent = termo
+      ? mostradas + " de " + bruto.length + " linhas"
+      : bruto.length + " linhas";
+  }
+
+  function recarrega(manter) {
+    return carregaArquivo(elHost.value, elData.value, manter);
+  }
+
+  // --- eventos ---
+
+  elHost.addEventListener("change", function () {
+    carregaDatas(elHost.value).then(function () { recarrega(false); });
+  });
+  elData.addEventListener("change", function () { recarrega(false); });
+  elFiltro.addEventListener("input", render);
+  elFim.addEventListener("click", function () {
+    window.scrollTo(0, document.body.scrollHeight);
+  });
+  elAuto.addEventListener("click", function () {
+    var ligado = elAuto.getAttribute("aria-pressed") === "true";
+    elAuto.setAttribute("aria-pressed", ligado ? "false" : "true");
+    if (timer) { clearInterval(timer); timer = null; }
+    if (!ligado) timer = setInterval(function () { recarrega(true); }, 10000);
+  });
+
+  // --- arranque ---
+
+  carregaHosts()
+    .then(function (host) {
+      if (!host) return;
+      return carregaDatas(host).then(function () { return recarrega(false); });
+    })
+    .catch(function (e) {
+      erro("Nao consegui listar os logs: " + e.message +
+           ". Confira se o nginx esta com autoindex_format json em /logs/.");
+    });
+})();
+</script>
+</body>
+</html>

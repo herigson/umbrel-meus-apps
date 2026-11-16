@@ -4,7 +4,7 @@ name: Syslog
 tagline: Servidor de syslog central para os equipamentos da rede
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4dc.svg
 category: Networking
-version: "4.11.0"
+version: "4.11.0-1"
 port: 8514
 description: >-
   Servidor de syslog (syslog-ng) para receber os logs dos equipamentos da
@@ -53,7 +53,29 @@ description: >-
   por hora - nesse ritmo qualquer janela de retencao se autoapaga. Prefira
   ppp, pppoe e interface a um "topics=all".
 releaseNotes: >-
-  Primeira versao empacotada na loja.
+  Entra a tela de leitura dos logs, no lugar da listagem crua de diretorio.
+
+  Escolha de aparelho e de dia, filtro de texto com destaque e contagem de
+  linhas casadas, carimbo de tempo em coluna propria, linhas de erro e de
+  aviso realcadas por cor, e um botao Auto que recarrega a cada 10 segundos
+  preservando a posicao da rolagem.
+
+  E uma pagina so, SEM NENHUM RECURSO EXTERNO - nada de CDN, fonte ou
+  biblioteca de fora. Foi deliberado: esta tela precisa funcionar
+  exatamente quando a internet esta fora, que e quando voce vai querer ler
+  o log do roteador.
+
+  Nao acrescenta container nem imagem nova. O proprio nginx que ja servia a
+  listagem passa a entregar o indice em JSON (autoindex_format json) e a
+  pagina consome isso. A alternativa seria Loki mais Grafana: tres
+  containers e um indice pesado para alguns KB por mes.
+
+  REDE DE SEGURANCA: /raw/ continua servindo a listagem HTML simples de
+  sempre, no mesmo diretorio. Se a pagina quebrar, o acesso aos arquivos
+  nao depende dela.
+
+
+  Versao anterior (4.11.0): primeira versao empacotada na loja.
 
 
   Imagem oficial do syslog-ng (balabit/syslog-ng 4.11.0), fixada de proposito
