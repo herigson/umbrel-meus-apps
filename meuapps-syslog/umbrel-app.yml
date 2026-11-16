@@ -4,7 +4,7 @@ name: Syslog
 tagline: Servidor de syslog central para os equipamentos da rede
 icon: https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/svg/1f4dc.svg
 category: Networking
-version: "4.11.0-3"
+version: "4.11.0-4"
 port: 8514
 description: >-
   Servidor de syslog (syslog-ng) para receber os logs dos equipamentos da
@@ -53,8 +53,33 @@ description: >-
   por hora - nesse ritmo qualquer janela de retencao se autoapaga. Prefira
   ppp, pppoe e interface a um "topics=all".
 releaseNotes: >-
-  Botao Apagar na tela, que remove do disco o arquivo do dia selecionado, e
-  fuso horario cravado no app.
+  FIM DO CURL NA MAO. A config do syslog-ng, o nginx.conf e a pagina deixam
+  de ser bind mounts e passam a ser assados em duas imagens proprias:
+  ghcr.io/herigson/syslog e ghcr.io/herigson/syslog-ui, construidas pelo
+  GitHub Actions a partir de .build/syslog e .build/syslog-ui.
+
+
+  O motivo: um Update do umbreld recopia APENAS o docker-compose.yml e o
+  umbrel-app.yml. Arquivo auxiliar so chega na INSTALACAO - entao mudar uma
+  linha de CSS no repo e clicar Update nao propagava nada, e cada ajuste
+  terminava em SSH mais curl dentro do servidor. A TAG DA IMAGEM mora no
+  compose, que propaga. Agora alterar a tela e: commit, esperar o build,
+  Update.
+
+
+  O unico bind que sobra e ${APP_DATA_DIR}/logs - o dado, que e exatamente
+  o que deve ficar fora da imagem.
+
+
+  DEPOIS DESTE UPDATE, os arquivos antigos em ~/umbrel/app-data/
+  meuapps-syslog/ (syslog-ng.conf, nginx.conf, index.html) ficam orfaos e
+  podem ser apagados. Nada mais os le.
+
+
+  Tambem entra verificacao antes de publicar: o workflow roda syslog-ng
+  --syntax-only e nginx -t, e confere que a imagem base ainda traz
+  --with-http_dav_module. Config quebrada agora falha no Actions, e nao em
+  container reiniciando em loop no Umbrel.
 
 
   O FUSO: o umbrelOS vem em UTC de fabrica, e em 16/11/2026 isso colocava 3

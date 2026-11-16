@@ -8,25 +8,24 @@ services:
 
   # Recebe syslog em 514/udp e grava um arquivo por host e por dia.
   server:
-    image: balabit/syslog-ng:4.11.0
+    # Config assada na imagem (ver .build/syslog). Era um bind mount de
+    # ${APP_DATA_DIR}/syslog-ng.conf ate a 4.11.0-4, e isso nao tinha como
+    # dar certo: um Update do umbreld recopia APENAS este arquivo e o
+    # umbrel-app.yml, entao a config no repo nunca chegava no servidor e
+    # cada ajuste virava SSH mais curl na mao. A tag abaixo, sim, propaga.
+    image: ghcr.io/herigson/syslog:4.11.0-4
     restart: unless-stopped
     ports:
       - "514:514/udp"
     environment:
-      # O fuso viaja com o app. O umbrelOS vem em UTC de fabrica, e em
-      # 16/11/2026 isso colocou 3 horas de diferenca em todo o log - e, pior,
-      # fazia o arquivo do dia virar as 21h locais, jogando uma queda noturna
-      # no arquivo do dia seguinte. O TZ tem precedencia sobre /etc/localtime
-      # na glibc, entao vale mesmo se o fuso do host voltar pra UTC num
-      # upgrade.
+      # O umbrelOS vem em UTC de fabrica, e em 16/11/2026 isso colocava 3
+      # horas de diferenca em todo o log - pior, o nome do arquivo tambem
+      # saia em UTC, entao o dia virava as 21h locais e uma queda as 22h
+      # caia no arquivo do dia seguinte.
       TZ: America/Sao_Paulo
     volumes:
-      # Config versionada NO REPO: ela e a fonte da verdade. Edicao manual no
-      # servidor nao tem onde sobreviver - foi o modo de falha do NPM na
-      # 40443, do datadir do electrs e do i2pd (Guia §14, §19).
-      - ${APP_DATA_DIR}/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro
+      # Unico bind que sobrou, e o unico que faz sentido: o dado.
       - ${APP_DATA_DIR}/logs:/logs
-      - /etc/localtime:/etc/localtime:ro
     container_name: meuapps-syslog_server_1
 
   # Servidor de syslog nao tem interface web, e todos os apps desta loja
@@ -35,18 +34,14 @@ services:
   # pelo navegador, durante uma queda, sem abrir SSH. Atras da autenticacao
   # do Umbrel (app_proxy).
   web:
-    image: nginx:1.27-alpine
+    # Pagina e nginx.conf assados na imagem (ver .build/syslog-ui).
+    image: ghcr.io/herigson/syslog-ui:4.11.0-4
     restart: unless-stopped
     environment:
       TZ: America/Sao_Paulo
     volumes:
-      # Config COMPLETA do nginx, nao um fragmento em conf.d. A diretiva
-      # "user root" que o botao de apagar exige so existe no contexto
-      # principal - ver o cabecalho do nginx.conf.
-      - ${APP_DATA_DIR}/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ${APP_DATA_DIR}/index.html:/app/index.html:ro
-      # SEM :ro. O volume precisa de escrita pro DELETE funcionar - mas so
-      # isso nao basta, a permissao do diretorio tambem conta.
+      # SEM :ro: o botao de apagar precisa de escrita. So isso nao basta -
+      # apagar depende de permissao no DIRETORIO, e e por isso que o worker
+      # do nginx roda como root (ver o cabecalho do nginx.conf).
       - ${APP_DATA_DIR}/logs:/logs
-      - /etc/localtime:/etc/localtime:ro
     container_name: meuapps-syslog_web_1

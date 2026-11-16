@@ -1,0 +1,80 @@
+name: build syslog
+
+# Publica ghcr.io/<owner>/syslog - o servidor syslog-ng do meuapps-syslog.
+# Roda sozinho quando algo em .build/syslog muda, ou na mao em
+# Actions -> Run workflow.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.build/syslog/**'
+      - '.github/workflows/build-syslog.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da imagem. Vazio = usa o arquivo .build/syslog/VERSION'
+        required: false
+        default: ''
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/syslog
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Definir tag
+        id: ver
+        run: |
+          # Sem input (caso do push automatico) a versao vem do arquivo VERSION,
+          # senao todo push republicaria a mesma tag.
+          T="${{ github.event.inputs.tag }}"
+          [ -z "$T" ] && T="$(tr -d ' \n\r' < .build/syslog/VERSION)"
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+          echo "publicando tag: $T"
+
+      - name: Checar sintaxe do syslog-ng.conf
+        # Antes de publicar. Config invalida aqui vira container em loop de
+        # restart no Umbrel, e a descoberta so aconteceria depois do Update.
+        run: |
+          docker run --rm \
+            -v "$PWD/.build/syslog/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf:ro" \
+            balabit/syslog-ng:4.11.0 \
+            syslog-ng --syntax-only -f /etc/syslog-ng/syslog-ng.conf
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v7
+        with:
+          context: .build/syslog
+          # A base balabit/syslog-ng:4.11.0 publica amd64 e arm64.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo
+        run: |
+          echo "### Imagem publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "No primeiro build: Packages -> syslog -> Package settings -> Change visibility -> Public." >> "$GITHUB_STEP_SUMMARY"

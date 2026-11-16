@@ -1,0 +1,84 @@
+name: build syslog-ui
+
+# Publica ghcr.io/<owner>/syslog-ui - a tela de leitura dos logs do
+# meuapps-syslog. Roda sozinho quando algo em .build/syslog-ui muda, ou na
+# mao em Actions -> Run workflow.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.build/syslog-ui/**'
+      - '.github/workflows/build-syslog-ui.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da imagem. Vazio = usa o arquivo .build/syslog-ui/VERSION'
+        required: false
+        default: ''
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/syslog-ui
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Definir tag
+        id: ver
+        run: |
+          T="${{ github.event.inputs.tag }}"
+          [ -z "$T" ] && T="$(tr -d ' \n\r' < .build/syslog-ui/VERSION)"
+          echo "tag=$T" >> "$GITHUB_OUTPUT"
+          echo "publicando tag: $T"
+
+      - name: Checar sintaxe do nginx.conf
+        # Config invalida aqui deixa o botao Open apontando pro vazio, e o
+        # /raw/ nao serve de rede de seguranca quando o proprio nginx nao sobe.
+        run: |
+          docker run --rm \
+            -v "$PWD/.build/syslog-ui/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            nginx:1.27-alpine nginx -t
+
+      - name: Conferir que o modulo dav existe na base
+        # O botao de apagar depende dele. Se um dia a imagem oficial parar de
+        # trazer o modulo, melhor quebrar o build do que descobrir pelo botao
+        # que nao faz nada.
+        run: |
+          docker run --rm nginx:1.27-alpine nginx -V 2>&1 \
+            | tr ' ' '\n' | grep -qx -- '--with-http_dav_module'
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v7
+        with:
+          context: .build/syslog-ui
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Resumo
+        run: |
+          echo "### Imagem publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ env.IMAGE }}:${{ steps.ver.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "No primeiro build: Packages -> syslog-ui -> Package settings -> Change visibility -> Public." >> "$GITHUB_STEP_SUMMARY"
